@@ -5,17 +5,24 @@ from math import cos, sin, pi
 # Preparation and Designation of constants
 pygame.init()
 
-FPS = 60
+#Window
 window_name = "3D in 2D projection"
 window_height = 900
 window_width = 900
-
 BACKGROUND_COLOR = (80, 80, 80)
-USE_COLOR = (0,255,50)
 window = pygame.display.set_mode((window_width,window_height))
 pygame.display.set_caption(window_name)
 
+# FrameRate
+FPS = 60
 clock = pygame.time.Clock()
+
+#Objects Drawn
+DRAW_VERTEXES = False
+DRAW_EDGES = True
+DRAW_FACES = True
+USE_COLOR = (0,255,50)
+FACE_COLOR = (255, 0, 205)
 
 class Point2D(NamedTuple):
     x: float
@@ -61,8 +68,14 @@ def point(point:Point2D):
 #Draw a line conecting both points specified
 def line(point1:Point2D, point2:Point2D):
     size = 2
+    if DRAW_FACES: size = 7
     pygame.draw.line(window,USE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
 
+#Draw a face of the model conecting all points specified
+def face(points:list):
+    pygame.draw.polygon(window,FACE_COLOR,points)
+
+#Build a list of tuples representing edges from pre-defined faces
 def build_wireframe_from_faces(faces:list):
     edges = set()
     for face in faces:
@@ -124,36 +137,34 @@ def gameloop():
         #Draw background (mostly for distinction of what is what)
         window.fill(BACKGROUND_COLOR)
 
-        #Draw Everything Else
-        '''for p in solid:
-            point(screenCoord(projection(translation(Point3D(p.x, p.y, p.z),deltaZ))))'''
-        
-        for idx1,idx2 in lines:
-            p1 = solid[idx1]
-            p2 = solid[idx2]
-            
+        #Draw Everything Else (make all transformations here so they're "less expensive" and then just use the points on projected points on the other drawing phases)
+        projected_points = []
+        for p in solid:
             #Apply Transformations (need to be stacked, both for translation and rotation)
-            rotations1 = rotation(
+            rotations = rotation(
                 rotation(
-                    Point3D(p1.x, p1.y, p1.z),1,angle),2,
+                    Point3D(p.x, p.y, p.z),1,angle),2,
                     angle)
-            rotations2 = rotation(
-                rotation(
-                    Point3D(p2.x, p2.y, p2.z),1,angle),2,
-                    angle)
-
-            transformations1 = translation(rotations1,2,deltaZ)
-            transformations2 = translation(rotations2,2,deltaZ)
+            
+            transformations = translation(rotations,2,deltaZ)
 
             #Define their coordenates in the screen
-            point1 = screenCoord(projection(transformations1))
-            point2 = screenCoord(projection(transformations2))
+            point1 = screenCoord(projection(transformations))
 
+            projected_points.append(point1)
 
-            line(point1,point2)
+            if DRAW_VERTEXES: point(point1)
+        
+        for edge in lines:
+            p1 = projected_points[edge[0]]
+            p2 = projected_points[edge[1]]
 
-        for face in faces:
-            pass
+            if DRAW_EDGES: line(p1,p2)
+
+        for solid_face in faces:
+            if DRAW_FACES:
+                face_points = [projected_points[i] for i in solid_face]
+                face(face_points)
 
         pygame.display.update()
         clock.tick(FPS)
