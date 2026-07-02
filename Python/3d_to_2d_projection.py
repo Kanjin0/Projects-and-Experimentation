@@ -28,17 +28,18 @@ class Point3D(NamedTuple):
 
 cubeSize = 1
 half = cubeSize/2
+starting_plane = 1.5 #The model used assumes user plane is at z = 0
 
 solid = [
-    Point3D(half,half,half),
-    Point3D(-half,half,half),
-    Point3D(-half,-half,half),
-    Point3D(half,-half,half),
+    Point3D(half,half,half+starting_plane),
+    Point3D(-half,half,half+starting_plane),
+    Point3D(-half,-half,half+starting_plane),
+    Point3D(half,-half,half+starting_plane),
 
-    Point3D(half,half,-half),
-    Point3D(-half,half,-half),
-    Point3D(-half,-half,-half),
-    Point3D(half,-half,-half),
+    Point3D(half,half,-half+starting_plane),
+    Point3D(-half,half,-half+starting_plane),
+    Point3D(-half,-half,-half+starting_plane),
+    Point3D(half,-half,-half+starting_plane),
 ]
 
 lines = [   
@@ -124,18 +125,18 @@ def gameloop():
             #Apply Transformations (need to be stacked, both for translation and rotation)
             rotations1 = rotation(
                 rotation(
-                    Point3D(p1.x, p1.y, p1.z),1,angle*0.5),2,
-                    angle)
+                    Point3D(p1.x, p1.y, p1.z),1,angle*0.),2,
+                    angle*0)
             rotations2 = rotation(
                 rotation(
-                    Point3D(p2.x, p2.y, p2.z),1,angle*0.5),2,
-                    angle)
+                    Point3D(p2.x, p2.y, p2.z),1,angle*0.),2,
+                    angle*0)
             
-            trasformations1 = translation(rotations1,2,deltaZ)
+            transformations1 = translation(rotations1,2,deltaZ)
             transformations2 = translation(rotations2,2,deltaZ)
 
             #Define their coordenates in the screen
-            point1 = screenCoord(projection(trasformations1))
+            point1 = screenCoord(projection(transformations1))
             point2 = screenCoord(projection(transformations2))
 
             line(point1,point2)
