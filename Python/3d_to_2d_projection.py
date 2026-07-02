@@ -60,32 +60,38 @@ lines = [
 ]
 
 #Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
-
 def point(point:Point2D):
     size = 10
     pygame.draw.rect(window, USE_COLOR,(point.x - size/2, point.y- size/2,size,size))
 
+#Draw a line conecting both points specified
 def line(point1:Point2D, point2:Point2D):
     size = 2
     pygame.draw.line(window,USE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
 
+#Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
 def screenCoord(point:Point2D):
     return Point2D((point.x + 1)*window_width/2, (-point.y + 1)*window_height/2)
 
+#Use x' = x/z and y' = y/z to obtain the projection of the corrected coordinates from the function above into the screen ("defining" a plane from where the drawings start being seen)
 def projection(point:Point3D):
     return Point2D(point.x/point.z, point.y/point.z)
 
-def translation(point:Point3D, deltaZ):
+#Move point in a direction specified by the axis (0 = "x" Axis, 1 = "y" Axis, 2+ = "z" Axis)
+def translation(point:Point3D, axis:int, deltaZ,):
+    if axis == 0:
+        return Point3D(point.x + deltaZ,point.y,point.z)
+    elif axis == 1:
+        return Point3D(point.x,point.y + deltaZ,point.z)
     return Point3D(point.x,point.y,point.z + deltaZ)
 
-def rotation_zAxis(point:Point3D, angle):
+#Rotate point around a specified axis (0 = "x" Axis, 1 = "y" Axis, 2+ = "z" Axis)
+def rotation(point:Point3D, axis:int, angle):
+    if axis == 0:
+        return Point3D(point.x,point.y*cos(angle) - point.z*sin(angle),point.y*sin(angle) + point.z*cos(angle))
+    elif axis == 1:
+        return Point3D(point.x*cos(angle) + point.z*sin(angle),point.y, -point.x*sin(angle) + point.z*cos(angle))
     return Point3D(point.x*cos(angle) - point.y*sin(angle),point.x*sin(angle)+ point.y*cos(angle),point.z)
-
-def rotation_yAxis(point:Point3D, angle):
-    return Point3D(point.x*cos(angle) + point.z*sin(angle),point.y, -point.x*sin(angle) + point.z*cos(angle))
-
-def rotation_xAxis(point:Point3D, angle):
-    return Point3D(point.x,point.y*cos(angle) - point.z*sin(angle),point.y*sin(angle) + point.z*cos(angle))
 
 
 def gameloop():
@@ -115,16 +121,22 @@ def gameloop():
             p1 = solid[idx1]
             p2 = solid[idx2]
             
-            rotations1 = rotation_zAxis(
-                rotation_xAxis(
-                    Point3D(p1.x, p1.y, p1.z),angle*0.5),
+            #Apply Transformations (need to be stacked, both for translation and rotation)
+            rotations1 = rotation(
+                rotation(
+                    Point3D(p1.x, p1.y, p1.z),1,angle*0.5),2,
                     angle)
-            rotations2 = rotation_zAxis(
-                rotation_xAxis(
-                    Point3D(p2.x, p2.y, p2.z),angle*0.5),
+            rotations2 = rotation(
+                rotation(
+                    Point3D(p2.x, p2.y, p2.z),1,angle*0.5),2,
                     angle)
-            point1 = screenCoord(projection(translation(rotations1,deltaZ)))
-            point2 = screenCoord(projection(translation(rotations2,deltaZ)))
+            
+            trasformations1 = translation(rotations1,2,deltaZ)
+            transformations2 = translation(rotations2,2,deltaZ)
+
+            #Define their coordenates in the screen
+            point1 = screenCoord(projection(trasformations1))
+            point2 = screenCoord(projection(transformations2))
 
             line(point1,point2)
 
