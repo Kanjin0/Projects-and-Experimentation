@@ -29,7 +29,7 @@ FACE_COLOR = (96,47,189)
 # Camera
 CAMERA_R = 4.0
 CAMERA_THETA = 0.0          # radians
-CAMERA_PHI = pi / 4    # 45° elevation
+CAMERA_PHI = pi / 4         # 45° elevation
 FOCAL_LENGTH = 500.0        # pixels
 
 class Point2D(NamedTuple):
