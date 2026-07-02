@@ -1,0 +1,28 @@
+NOTE: THIS WAS OBTAINED THROUGH A PROMPT ASKING FOR MORE MODELS TO TEST THE CODE WITH
+
+def generate_sphere(radius, num_lats, num_longs):
+    vertices = []
+    faces = []
+    
+    for i in range(num_lats + 1):
+        theta = pi * i / num_lats  # from 0 to pi (top to bottom)
+        for j in range(num_longs + 1):
+            phi = 2 * pi * j / num_longs  # around the equator
+            x = radius * sin(theta) * cos(phi)
+            y = radius * cos(theta)
+            z = radius * sin(theta) * sin(phi)
+            vertices.append(Point3D(x, y, z))
+    
+    for i in range(num_lats):
+        for j in range(num_longs):
+            v1 = i * (num_longs + 1) + j
+            v2 = i * (num_longs + 1) + (j + 1)
+            v3 = (i + 1) * (num_longs + 1) + (j + 1)
+            v4 = (i + 1) * (num_longs + 1) + j
+            faces.append([v1, v2, v3, v4])
+    
+    return vertices, faces
+
+Add this to before lines = build_wireframe_from_faces(faces):
+
+solid, faces = generate_sphere(radius=1.5, num_lats=20, num_longs=20)

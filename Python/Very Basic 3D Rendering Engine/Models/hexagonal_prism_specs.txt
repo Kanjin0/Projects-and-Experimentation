@@ -1,0 +1,29 @@
+NOTE: THIS WAS OBTAINED THROUGH A PROMPT ASKING FOR MORE MODELS TO TEST THE CODE WITH
+
+# ---------- HEXAGONAL PRISM ----------
+r = .7        # radius of the hexagon
+h = .7        # half‑height (y goes from -h to +h)
+
+solid = []
+
+# Top face (y = +h)
+for i in range(6):
+    angle = 2 * pi * i / 6
+    solid.append(Point3D(r * cos(angle), h, r * sin(angle)))
+
+# Bottom face (y = -h)
+for i in range(6):
+    angle = 2 * pi * i / 6
+    solid.append(Point3D(r * cos(angle), -h, r * sin(angle)))
+
+# Vertices 0–5 = top, 6–11 = bottom
+faces = [
+    [0, 1, 2, 3, 4, 5],          # Top face (hexagon)
+    [6, 7, 8, 9, 10, 11],        # Bottom face (hexagon)
+    [0, 1, 7, 6],                # Side 1
+    [1, 2, 8, 7],                # Side 2
+    [2, 3, 9, 8],                # Side 3
+    [3, 4, 10, 9],               # Side 4
+    [4, 5, 11, 10],              # Side 5
+    [5, 0, 6, 11]                # Side 6
+]

@@ -18,7 +18,7 @@ FPS = 60
 clock = pygame.time.Clock()
 
 #Objects Drawn
-DRAW_VERTEXES = True
+DRAW_VERTEXES = False
 DRAW_EDGES = True
 DRAW_FACES = True
 USE_COLOR = (0,255,50)
@@ -33,9 +33,7 @@ class Point3D(NamedTuple):
     y: float
     z: float
 
-cubeSize = 1
-half = cubeSize/2
-
+half = 0.5
 
 solid = [
     Point3D(half,half,half),
@@ -68,7 +66,7 @@ def point(point:Point2D):
 #Draw a line conecting both points specified
 def line(point1:Point2D, point2:Point2D):
     size = 2
-    if DRAW_FACES: size = 7
+    if DRAW_FACES: size = 5
     pygame.draw.line(window,USE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
 
 #Draw a face of the model conecting all points specified
@@ -155,8 +153,6 @@ def gameloop():
             point1 = screenCoord(projection(transformations))
 
             projected_points.append(point1)
-
-            if DRAW_VERTEXES: point(point1)
         
         #Calculate the avg z of each of the faces and put it into a list to choose from later
         face_depth = []
@@ -179,6 +175,9 @@ def gameloop():
                 p2 = projected_points[edge[1]]
                 line(p1,p2)
 
+        if DRAW_VERTEXES:
+            for point1 in projected_points:
+                point(point1)
         
         pygame.display.update()
         clock.tick(FPS)

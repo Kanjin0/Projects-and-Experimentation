@@ -1,0 +1,24 @@
+half = 0.5
+
+solid = [
+    Point3D(half,half,half),
+    Point3D(-half,half,half),
+    Point3D(-half,-half,half),
+    Point3D(half,-half,half),
+
+    Point3D(half,half,-half),
+    Point3D(-half,half,-half),
+    Point3D(-half,-half,-half),
+    Point3D(half,-half,-half),
+]
+
+faces = [
+    (0,1,2,3), # Back Face (z = half + starting_plane) - Farthest from camera/user (at/close to z = 0) (Normal: +Z) - Away from camera
+    (5,4,7,6), # Front Face (z = -half + starting_plane) - Farthest from camera/user (Normal: -Z) - Towards camera
+
+    (1,5,6,2), # Left Face (x = -half) (Normal: -X)
+    (3,7,4,0), # Right Face (x = +half) (Normal: +X)
+
+    (4,5,1,0), # Top Face (y = +half) (Normal: +Y)
+    (3,2,6,7), # Bottom Face (y = -half) (Normal: -Y)
+]
