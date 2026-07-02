@@ -159,8 +159,6 @@ def gameloop():
                     dx, dy = event.rel
                     CAMERA_THETA += dx * 0.005
                     CAMERA_PHI += dy * 0.005
-                    # Clamp elevation to avoid flipping
-                    #CAMERA_PHI = max(0.1, min(pi - 0.1, CAMERA_PHI))
             elif event.type == pygame.MOUSEWHEEL:
                 FOCAL_LENGTH += event.y * 75
                 FOCAL_LENGTH = max(100, min(2000, FOCAL_LENGTH))
