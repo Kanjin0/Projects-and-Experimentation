@@ -18,7 +18,7 @@ FPS = 60
 clock = pygame.time.Clock()
 
 #Objects Drawn
-DRAW_VERTEXES = False
+DRAW_VERTEXES = True
 DRAW_EDGES = True
 DRAW_FACES = True
 USE_COLOR = (0,255,50)
@@ -123,7 +123,7 @@ def gameloop():
     while loop:
         angle = angle + theta
 
-        #Some back and Forth Motion
+        #Some back and forth Motion
         if cos(angle/1.1) > 0:
             deltaZ = min(deltaZ + deltaTime/2,3)
         else:
@@ -139,14 +139,17 @@ def gameloop():
 
         #Draw Everything Else (make all transformations here so they're "less expensive" and then just use the points on projected points on the other drawing phases)
         projected_points = []
+        transformed_3d = [] # Need this one because projection squashes z so we can't do z-sorting with the points of the list above
+        
+        #Apply Transformations to all points (need to be stacked, both for translation and rotation) (and maybe draw vertexes)
         for p in solid:
-            #Apply Transformations (need to be stacked, both for translation and rotation)
             rotations = rotation(
                 rotation(
                     Point3D(p.x, p.y, p.z),1,angle),2,
                     angle)
             
             transformations = translation(rotations,2,deltaZ)
+            transformed_3d.append(transformations)
 
             #Define their coordenates in the screen
             point1 = screenCoord(projection(transformations))
@@ -155,17 +158,28 @@ def gameloop():
 
             if DRAW_VERTEXES: point(point1)
         
-        for edge in lines:
-            p1 = projected_points[edge[0]]
-            p2 = projected_points[edge[1]]
+        #Calculate the avg z of each of the faces and put it into a list to choose from later
+        face_depth = []
+        for face_idxs in faces:
+            avg_z = sum(transformed_3d[i].z for i in face_idxs) / len(face_idxs)
+            face_depth.append((avg_z,face_idxs))
 
-            if DRAW_EDGES: line(p1,p2)
-
-        for solid_face in faces:
-            if DRAW_FACES:
-                face_points = [projected_points[i] for i in solid_face]
+        face_depth.sort(key= lambda x: x[0], reverse= True) #We use reverse because: our model has z increasing into the screen so larger z means farther into the back
+                                                            #Therefore, we those faces with larger z in the front of the list so when we draw the ones with smaller z, they get drawn over the 1st ones
+        
+        #Now that all the math has been done, we can simply draw everything according to the previous sortings
+        if DRAW_FACES:
+            for avg_z, face_idxs in face_depth:
+                face_points = [projected_points[i] for i in face_idxs]
                 face(face_points)
+                
+        if DRAW_EDGES:
+            for edge in lines:
+                p1 = projected_points[edge[0]]
+                p2 = projected_points[edge[1]]
+                line(p1,p2)
 
+        
         pygame.display.update()
         clock.tick(FPS)
     clock.tick(FPS)
