@@ -22,8 +22,15 @@ BACK_CULLING = True
 DRAW_VERTEXES = True
 DRAW_EDGES = True
 DRAW_FACES = True
-USE_COLOR = (0,255,50)
-FACE_COLOR = (255, 0, 205)
+VERTEX_COLOR = (40,144,69)
+EDGE_COLOR = (236,172,50)
+FACE_COLOR = (96,47,189)
+
+# Camera
+CAMERA_R = 4.0
+CAMERA_THETA = 0.0          # radians
+CAMERA_PHI = pi / 4    # 45° elevation
+FOCAL_LENGTH = 500.0        # pixels
 
 class Point2D(NamedTuple):
     x: float
@@ -62,13 +69,13 @@ faces = [
 #Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
 def point(point:Point2D):
     size = 10
-    pygame.draw.rect(window, USE_COLOR,(point.x - size/2, point.y- size/2,size,size))
+    pygame.draw.rect(window, VERTEX_COLOR,(point.x - size/2, point.y- size/2,size,size))
 
 #Draw a line conecting both points specified
 def line(point1:Point2D, point2:Point2D):
     size = 2
     if DRAW_FACES: size = 5
-    pygame.draw.line(window,USE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
+    pygame.draw.line(window,EDGE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
 
 #Draw a face of the model conecting all points specified
 def face(points:list):
@@ -125,6 +132,8 @@ def rotation(point:Point3D, axis:int, angle):
 
 
 def gameloop():
+    global BACK_CULLING, DRAW_VERTEXES, DRAW_EDGES, DRAW_FACES
+    global CAMERA_R, CAMERA_THETA, CAMERA_PHI, FOCAL_LENGTH
     loop = True
     deltaTime = 1/FPS
     deltaZ = 2
@@ -143,8 +152,28 @@ def gameloop():
         
         #Handle events (might implement drawing a solid by clicking to add vertexes)
         for event in pygame.event.get():
+            # See if it must stop the loop to close the window
             if event.type == pygame.QUIT:
                 loop = False
+            elif event.type == pygame.MOUSEMOTION:
+                if pygame.mouse.get_pressed()[0]: # left button held
+                    dx, dy = event.rel #event.rel gets the relative position to the previous one, so, in short, vectors of movement to where the mouse went
+                    CAMERA_THETA += dx * 0.005
+                    CAMERA_PHI += dy * 0.005
+                    CAMERA_PHI = max(0.1, min(0.1 - pi, CAMERA_PHI)) #clamp
+            elif event.type == pygame.MOUSEWHEEL:
+                FOCAL_LENGTH += event.y * 10
+                FOCAL_LENGTH = max(100, min(2000,FOCAL_LENGTH))
+            # Respond to switching on and off the properties below
+            if event.type == pygame.KEYDOWN: 
+                if event.key == pygame.K_SPACE:
+                    BACK_CULLING = not BACK_CULLING
+                if event.key == pygame.K_v:
+                    DRAW_VERTEXES = not DRAW_VERTEXES
+                if event.key == pygame.K_e:
+                    DRAW_EDGES = not DRAW_EDGES
+                if event.key == pygame.K_f:
+                    DRAW_FACES = not DRAW_FACES
 
         #Draw background (mostly for distinction of what is what)
         window.fill(BACKGROUND_COLOR)
