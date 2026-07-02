@@ -1,5 +1,7 @@
 import pygame
 from typing import NamedTuple
+from math import cos, sin, pi
+
 # Preparation and Designation of constants
 pygame.init()
 
@@ -10,9 +12,6 @@ window_width = 900
 
 BACKGROUND_COLOR = (80, 80, 80)
 USE_COLOR = (0,255,50)
-
-cubeSize = 1
-
 window = pygame.display.set_mode((window_width,window_height))
 pygame.display.set_caption(window_name)
 
@@ -27,16 +26,19 @@ class Point3D(NamedTuple):
     y: float
     z: float
 
-solid = [
-    Point3D(cubeSize/2,cubeSize/2,cubeSize),
-    Point3D(-cubeSize/2,cubeSize/2,cubeSize),
-    Point3D(-cubeSize/2,-cubeSize/2,cubeSize),
-    Point3D(cubeSize/2,-cubeSize/2,cubeSize),
+cubeSize = 1
+half = cubeSize/2
 
-    Point3D(cubeSize/2,cubeSize/2,0),
-    Point3D(-cubeSize/2,cubeSize/2,0),
-    Point3D(-cubeSize/2,-cubeSize/2,0),
-    Point3D(cubeSize/2,-cubeSize/2,0),
+solid = [
+    Point3D(half,half,half),
+    Point3D(-half,half,half),
+    Point3D(-half,-half,half),
+    Point3D(half,-half,half),
+
+    Point3D(half,half,-half),
+    Point3D(-half,half,-half),
+    Point3D(-half,-half,-half),
+    Point3D(half,-half,-half),
 ]
 
 lines = [   
@@ -76,13 +78,26 @@ def projection(point:Point3D):
 def translation(point:Point3D, deltaZ):
     return Point3D(point.x,point.y,point.z + deltaZ)
 
+def rotation_zAxis(point:Point3D, angle):
+    return Point3D(point.x*cos(angle) - point.y*sin(angle),point.x*sin(angle)+ point.y*cos(angle),point.z)
+
+def rotation_yAxis(point:Point3D, angle):
+    return Point3D(point.x*cos(angle) + point.z*sin(angle),point.y, -point.x*sin(angle) + point.z*cos(angle))
+
+def rotation_xAxis(point:Point3D, angle):
+    return Point3D(point.x,point.y*cos(angle) - point.z*sin(angle),point.y*sin(angle) + point.z*cos(angle))
+
+
 def gameloop():
     loop = True
     deltaTime = 1/FPS
     deltaZ = 0
+    theta = pi*deltaTime/2
+    angle = 0
 
     while loop:
-        deltaZ = min(deltaZ + deltaTime/2,1)
+        deltaZ = min(deltaZ + deltaTime/2,2)
+        angle = angle + theta
         
         #Handle events (might implement drawing a solid by clicking to add vertexes)
         for event in pygame.event.get():
@@ -93,16 +108,23 @@ def gameloop():
         window.fill(BACKGROUND_COLOR)
 
         #Draw Everything Else
-        for p in solid:
-            
-            point(screenCoord(projection(translation(Point3D(p.x, p.y, p.z),deltaZ))))
+        '''for p in solid:
+            point(screenCoord(projection(translation(Point3D(p.x, p.y, p.z),deltaZ))))'''
         
         for idx1,idx2 in lines:
-
             p1 = solid[idx1]
             p2 = solid[idx2]
-            point1 = screenCoord(projection(translation(Point3D(p1.x, p1.y, p1.z),deltaZ)))
-            point2 = screenCoord(projection(translation(Point3D(p2.x, p2.y, p2.z),deltaZ)))
+            
+            rotations1 = rotation_zAxis(
+                rotation_xAxis(
+                    Point3D(p1.x, p1.y, p1.z),angle*0.5),
+                    angle)
+            rotations2 = rotation_zAxis(
+                rotation_xAxis(
+                    Point3D(p2.x, p2.y, p2.z),angle*0.5),
+                    angle)
+            point1 = screenCoord(projection(translation(rotations1,deltaZ)))
+            point2 = screenCoord(projection(translation(rotations2,deltaZ)))
 
             line(point1,point2)
 
