@@ -18,7 +18,8 @@ FPS = 60
 clock = pygame.time.Clock()
 
 #Objects Drawn
-DRAW_VERTEXES = False
+BACK_CULLING = True
+DRAW_VERTEXES = True
 DRAW_EDGES = True
 DRAW_FACES = True
 USE_COLOR = (0,255,50)
@@ -84,6 +85,19 @@ def build_wireframe_from_faces(faces:list):
             edge = tuple(sorted((v1,v2)))
             edges.add(edge)
     return list(edges)
+
+def calculate_face_normal(p0:Point3D,p1:Point3D,p2:Point3D):
+
+    #Direction vectors
+    v0 = (p1.x - p0.x, p1.y - p0.y, p1.z - p0.z)
+    v1 = (p2.x - p1.x, p2.y - p1.y, p2.z - p1.z)
+
+    #Cross Product
+    a = v0[1]*v1[2] - v0[2]*v1[1]
+    b = v0[2]*v1[0] - v0[0]*v1[2]
+    c = v0[0]*v1[1] - v0[1]*v1[0]
+
+    return (a,b,c)
 
 #Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
 def screenCoord(point:Point2D):
@@ -157,12 +171,38 @@ def gameloop():
         #Calculate the avg z of each of the faces and put it into a list to choose from later
         face_depth = []
         for face_idxs in faces:
-            avg_z = sum(transformed_3d[i].z for i in face_idxs) / len(face_idxs)
-            face_depth.append((avg_z,face_idxs))
+            if BACK_CULLING:
+                #These 3 points are used to calculated the normal of each face, making it possible to apply back-culling to them.
+                v0 = transformed_3d[face_idxs[0]]
+                v1 = transformed_3d[face_idxs[1]]
+                v2 = transformed_3d[face_idxs[2]]
+
+                a,b,c = calculate_face_normal(v0,v1,v2)
+
+                if c < -1e-5:
+                    avg_z = sum(transformed_3d[i].z for i in face_idxs) / len(face_idxs)
+                    face_depth.append((avg_z,face_idxs))
+            else:
+                avg_z = sum(transformed_3d[i].z for i in face_idxs) / len(face_idxs)
+                face_depth.append((avg_z,face_idxs))
 
         face_depth.sort(key= lambda x: x[0], reverse= True) #We use reverse because: our model has z increasing into the screen so larger z means farther into the back
                                                             #Therefore, we those faces with larger z in the front of the list so when we draw the ones with smaller z, they get drawn over the 1st ones
         
+        visible_verts = set()
+        visible_edges = set()
+        if BACK_CULLING and (DRAW_EDGES or DRAW_VERTEXES):
+            for _, face_idxs in face_depth:
+                for idx in face_idxs:
+                    visible_verts.add(idx)
+                for i in range (len(face_idxs)):
+                    v1 = face_idxs[i]
+                    v2 = face_idxs[(i+1) % len(face_idxs)]
+                    edg = tuple(sorted((v1,v2)))
+                    visible_edges.add(edg)
+
+
+
         #Now that all the math has been done, we can simply draw everything according to the previous sortings
         if DRAW_FACES:
             for avg_z, face_idxs in face_depth:
@@ -171,13 +211,25 @@ def gameloop():
                 
         if DRAW_EDGES:
             for edge in lines:
-                p1 = projected_points[edge[0]]
-                p2 = projected_points[edge[1]]
-                line(p1,p2)
+                if BACK_CULLING:
+                    if edge in visible_edges:
+                        p1 = projected_points[edge[0]]
+                        p2 = projected_points[edge[1]]
+                        line(p1,p2)
+                else:
+                    p1 = projected_points[edge[0]]
+                    p2 = projected_points[edge[1]]
+                    line(p1,p2)
+                    
 
         if DRAW_VERTEXES:
-            for point1 in projected_points:
-                point(point1)
+            if BACK_CULLING:
+                for i, point1 in enumerate(projected_points):
+                    if i in visible_verts:
+                        point(point1)
+            else:
+                for point1 in projected_points:
+                    point(point1)
         
         pygame.display.update()
         clock.tick(FPS)
