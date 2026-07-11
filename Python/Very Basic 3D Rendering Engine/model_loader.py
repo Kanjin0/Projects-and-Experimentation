@@ -1,11 +1,26 @@
 from math_utils import Point2D, Point3D
 from math import cos, sin, pi
+import os
+
+MODELS_DIR = "Models"
 
 # Completely define a solid using information from a .obj file
-def load_obj(filepath):
-    vertices_list, faces_list = [], []
+def load_obj(filename:str, scale_to_fit = 1.5) -> tuple[list[Point3D], list[list[int]]]:
+    filepath = os.path.join(MODELS_DIR,filename)
+    print(filepath)
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Model file not found: {filepath}")
+    else:
+        vertices_list, faces_list = [], []
+        with open(filepath,"r") as file:
 
-    return vertices_list , faces_list
+            for line in file:
+                if line.startswith("v "):
+                    vertCoords = line.strip().split(sep = " ")
+                    print(vertCoords)
+
+
+        return vertices_list , faces_list
 
 def load_hexagonal_prism(base_radius:float = 0.7, half_height:float = 0.7) -> tuple[list[Point3D], list[list[int]]]:
     #NOTE: THIS WAS OBTAINED THROUGH A PROMPT ASKING FOR MORE MODELS TO TEST THE CODE WITH

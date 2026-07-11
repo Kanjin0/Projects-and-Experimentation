@@ -2,7 +2,6 @@ import pygame
 from engine_config import VERTEX_COLOR,EDGE_COLOR, FACE_COLOR, DRAW_FACES, window
 from math_utils import Point2D
 
-
 #Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
 def point(point:Point2D):
     size = 10
