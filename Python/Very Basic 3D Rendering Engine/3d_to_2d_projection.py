@@ -4,35 +4,10 @@ from math import cos, sin, pi, sqrt
 import engine_config
 from math_utils import *
 from renderer import *
+import model_loader
 
 
-# ---------- HEXAGONAL PRISM ----------
-r = .7        # radius of the hexagon
-h = .7        # half‑height (y goes from -h to +h)
-
-solid = []
-
-# Top face (y = +h)
-for i in range(6):
-    angle = 2 * pi * i / 6
-    solid.append(Point3D(r * cos(angle), h, r * sin(angle)))
-
-# Bottom face (y = -h)
-for i in range(6):
-    angle = 2 * pi * i / 6
-    solid.append(Point3D(r * cos(angle), -h, r * sin(angle)))
-
-# Vertices 0–5 = top, 6–11 = bottom
-faces = [
-    [5, 4, 3, 2, 1, 0],          # Top face (fixed: outward +Y)
-    [6, 7, 8, 9, 10, 11],        # Bottom face (unchanged: outward -Y)
-    [0, 1, 7, 6],                # Side 1
-    [1, 2, 8, 7],                # Side 2
-    [2, 3, 9, 8],                # Side 3
-    [3, 4, 10, 9],               # Side 4
-    [4, 5, 11, 10],              # Side 5
-    [5, 0, 6, 11]                # Side 6
-]
+solid , faces = model_loader.load_hexagonal_prism()
 
 # Preparation and Designation of constants
 pygame.init()
@@ -74,13 +49,13 @@ def gameloop():
                 engine_config.FOCAL_LENGTH = max(100, min(2000, engine_config.FOCAL_LENGTH))
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    BACK_CULLING = not engine_config.BACK_CULLING
+                    engine_config.BACK_CULLING = not engine_config.BACK_CULLING
                 elif event.key == pygame.K_v:
-                    DRAW_VERTEXES = not engine_config.DRAW_VERTEXES
+                    engine_config.DRAW_VERTEXES = not engine_config.DRAW_VERTEXES
                 elif event.key == pygame.K_e:
-                    DRAW_EDGES = not engine_config.DRAW_EDGES
+                    engine_config.DRAW_EDGES = not engine_config.DRAW_EDGES
                 elif event.key == pygame.K_f:
-                    DRAW_FACES = not engine_config.DRAW_FACES
+                    engine_config.DRAW_FACES = not engine_config.DRAW_FACES
 
         #Draw background (mostly for distinction of what is what)
         window.fill(engine_config.BACKGROUND_COLOR)
