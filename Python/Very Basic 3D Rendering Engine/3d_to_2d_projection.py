@@ -32,6 +32,8 @@ CAMERA_THETA = 0.0          # radians
 CAMERA_PHI = pi / 4         # 45° elevation
 FOCAL_LENGTH = 500.0        # pixels
 
+#Lighting
+
 class Point2D(NamedTuple):
     x: float
     y: float
@@ -41,29 +43,32 @@ class Point3D(NamedTuple):
     y: float
     z: float
 
-half = 0.5
+# ---------- HEXAGONAL PRISM ----------
+r = .7        # radius of the hexagon
+h = .7        # half‑height (y goes from -h to +h)
 
-solid = [
-    Point3D(half,half,half),
-    Point3D(-half,half,half),
-    Point3D(-half,-half,half),
-    Point3D(half,-half,half),
+solid = []
 
-    Point3D(half,half,-half),
-    Point3D(-half,half,-half),
-    Point3D(-half,-half,-half),
-    Point3D(half,-half,-half),
-]
+# Top face (y = +h)
+for i in range(6):
+    angle = 2 * pi * i / 6
+    solid.append(Point3D(r * cos(angle), h, r * sin(angle)))
 
+# Bottom face (y = -h)
+for i in range(6):
+    angle = 2 * pi * i / 6
+    solid.append(Point3D(r * cos(angle), -h, r * sin(angle)))
+
+# Vertices 0–5 = top, 6–11 = bottom
 faces = [
-    (0,1,2,3), # Back Face (z = half + starting_plane) - Farthest from camera/user (at/close to z = 0) (Normal: +Z) - Away from camera
-    (5,4,7,6), # Front Face (z = -half + starting_plane) - Farthest from camera/user (Normal: -Z) - Towards camera
-
-    (1,5,6,2), # Left Face (x = -half) (Normal: -X)
-    (3,7,4,0), # Right Face (x = +half) (Normal: +X)
-
-    (4,5,1,0), # Top Face (y = +half) (Normal: +Y)
-    (3,2,6,7), # Bottom Face (y = -half) (Normal: -Y)
+    [5, 4, 3, 2, 1, 0],          # Top face (fixed: outward +Y)
+    [6, 7, 8, 9, 10, 11],        # Bottom face (unchanged: outward -Y)
+    [0, 1, 7, 6],                # Side 1
+    [1, 2, 8, 7],                # Side 2
+    [2, 3, 9, 8],                # Side 3
+    [3, 4, 10, 9],               # Side 4
+    [4, 5, 11, 10],              # Side 5
+    [5, 0, 6, 11]                # Side 6
 ]
 
 #Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
@@ -157,8 +162,8 @@ def gameloop():
             elif event.type == pygame.MOUSEMOTION:
                 if pygame.mouse.get_pressed()[0]:  # left button held
                     dx, dy = event.rel
-                    CAMERA_THETA += dx * 0.005
-                    CAMERA_PHI += dy * 0.005
+                    CAMERA_THETA += -dx * 0.005 # move object sideways
+                    CAMERA_PHI += -dy * 0.005 # move object up and down
             elif event.type == pygame.MOUSEWHEEL:
                 FOCAL_LENGTH += event.y * 75
                 FOCAL_LENGTH = max(100, min(2000, FOCAL_LENGTH))
@@ -182,8 +187,8 @@ def gameloop():
         for p in solid:
             rotations = rotation(
                 rotation(
-                    Point3D(p.x, p.y, p.z),1,angle),2,
-                    angle)
+                    Point3D(p.x, p.y, p.z),1,0),2,
+                    0)
             
             transformations = rotations; '''translation(rotations,2,deltaZ)'''
             transformed_3d.append(transformations)
