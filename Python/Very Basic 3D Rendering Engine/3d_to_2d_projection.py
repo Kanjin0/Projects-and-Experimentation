@@ -2,6 +2,7 @@ import pygame
 from typing import NamedTuple
 from math import cos, sin, pi, sqrt
 import engine_config
+from math_utils import *
 
 # Preparation and Designation of constants
 pygame.init()
@@ -12,16 +13,6 @@ pygame.display.set_caption(engine_config.window_name)
 
 clock = pygame.time.Clock()
 
-#Lighting
-
-class Point2D(NamedTuple):
-    x: float
-    y: float
-
-class Point3D(NamedTuple):
-    x: float
-    y: float
-    z: float
 
 # ---------- HEXAGONAL PRISM ----------
 r = .7        # radius of the hexagon
@@ -77,24 +68,6 @@ def build_wireframe_from_faces(faces:list):
             edge = tuple(sorted((v1,v2)))
             edges.add(edge)
     return list(edges)
-
-#Calculate the direction the normal of the face belonging to the plane defined by the 3 parameter points is facing
-def calculate_face_normal(p0:Point3D,p1:Point3D,p2:Point3D):
-
-    #Direction vectors
-    v0 = (p1.x - p0.x, p1.y - p0.y, p1.z - p0.z)
-    v1 = (p2.x - p1.x, p2.y - p1.y, p2.z - p1.z)
-
-    #Cross Product
-    a = v0[1]*v1[2] - v0[2]*v1[1]
-    b = v0[2]*v1[0] - v0[0]*v1[2]
-    c = v0[0]*v1[1] - v0[1]*v1[0]
-
-    return (a,b,c)
-
-#Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
-def screenCoord(point:Point2D):
-    return Point2D((point.x + 1)*engine_config.window_width/2, (-point.y + 1)*engine_config.window_height/2)
 
 #Use x' = x/z and y' = y/z to obtain the projection of the corrected coordinates from the function above into the screen ("defining" a plane from where the drawings start being seen)
 def projection(point:Point3D):
