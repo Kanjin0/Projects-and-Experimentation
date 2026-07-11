@@ -1,36 +1,16 @@
 import pygame
 from typing import NamedTuple
 from math import cos, sin, pi, sqrt
+import engine_config
 
 # Preparation and Designation of constants
 pygame.init()
 
-#Window
-window_name = "3D in 2D projection"
-window_height = 900
-window_width = 900
-BACKGROUND_COLOR = (80, 80, 80)
-window = pygame.display.set_mode((window_width,window_height))
-pygame.display.set_caption(window_name)
 
-# FrameRate
-FPS = 60
+window = pygame.display.set_mode((engine_config.window_width,engine_config.window_height))
+pygame.display.set_caption(engine_config.window_name)
+
 clock = pygame.time.Clock()
-
-#Objects Drawn
-BACK_CULLING = True
-DRAW_VERTEXES = True
-DRAW_EDGES = True
-DRAW_FACES = True
-VERTEX_COLOR = (40,144,69)
-EDGE_COLOR = (236,172,50)
-FACE_COLOR = (96,47,189)
-
-# Camera
-CAMERA_R = 4.0
-CAMERA_THETA = 0.0          # radians
-CAMERA_PHI = pi / 4         # 45° elevation
-FOCAL_LENGTH = 500.0        # pixels
 
 #Lighting
 
@@ -74,17 +54,17 @@ faces = [
 #Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
 def point(point:Point2D):
     size = 10
-    pygame.draw.rect(window, VERTEX_COLOR,(point.x - size/2, point.y- size/2,size,size))
+    pygame.draw.rect(window, engine_config.VERTEX_COLOR,(point.x - size/2, point.y- size/2,size,size))
 
 #Draw a line conecting both points specified
 def line(point1:Point2D, point2:Point2D):
     size = 2
-    if DRAW_FACES: size = 5
-    pygame.draw.line(window,EDGE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
+    if engine_config.DRAW_FACES: size = 5
+    pygame.draw.line(window,engine_config.EDGE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
 
 #Draw a face of the model conecting all points specified
 def face(points:list):
-    pygame.draw.polygon(window,FACE_COLOR,points)
+    pygame.draw.polygon(window,engine_config.FACE_COLOR,points)
 
 #Build a list of tuples representing edges from pre-defined faces
 def build_wireframe_from_faces(faces:list):
@@ -98,6 +78,7 @@ def build_wireframe_from_faces(faces:list):
             edges.add(edge)
     return list(edges)
 
+#Calculate the direction the normal of the face belonging to the plane defined by the 3 parameter points is facing
 def calculate_face_normal(p0:Point3D,p1:Point3D,p2:Point3D):
 
     #Direction vectors
@@ -113,7 +94,7 @@ def calculate_face_normal(p0:Point3D,p1:Point3D,p2:Point3D):
 
 #Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
 def screenCoord(point:Point2D):
-    return Point2D((point.x + 1)*window_width/2, (-point.y + 1)*window_height/2)
+    return Point2D((point.x + 1)*engine_config.window_width/2, (-point.y + 1)*engine_config.window_height/2)
 
 #Use x' = x/z and y' = y/z to obtain the projection of the corrected coordinates from the function above into the screen ("defining" a plane from where the drawings start being seen)
 def projection(point:Point3D):
@@ -137,10 +118,9 @@ def rotation(point:Point3D, axis:int, angle):
 
 
 def gameloop():
-    global BACK_CULLING, DRAW_VERTEXES, DRAW_EDGES, DRAW_FACES
-    global CAMERA_R, CAMERA_THETA, CAMERA_PHI, FOCAL_LENGTH
+
     loop = True
-    deltaTime = 1/FPS
+    deltaTime = 1/engine_config.FPS
     deltaZ = 1
     theta = pi*deltaTime/2
     angle = 0
@@ -162,23 +142,23 @@ def gameloop():
             elif event.type == pygame.MOUSEMOTION:
                 if pygame.mouse.get_pressed()[0]:  # left button held
                     dx, dy = event.rel
-                    CAMERA_THETA += -dx * 0.005 # move object sideways
-                    CAMERA_PHI += -dy * 0.005 # move object up and down
+                    engine_config.CAMERA_THETA += -dx * 0.005 # move object sideways
+                    engine_config.CAMERA_PHI += -dy * 0.005 # move object up and down
             elif event.type == pygame.MOUSEWHEEL:
-                FOCAL_LENGTH += event.y * 75
-                FOCAL_LENGTH = max(100, min(2000, FOCAL_LENGTH))
+                engine_config.FOCAL_LENGTH += event.y * 75
+                engine_config.FOCAL_LENGTH = max(100, min(2000, engine_config.FOCAL_LENGTH))
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    BACK_CULLING = not BACK_CULLING
+                    BACK_CULLING = not engine_config.BACK_CULLING
                 elif event.key == pygame.K_v:
-                    DRAW_VERTEXES = not DRAW_VERTEXES
+                    DRAW_VERTEXES = not engine_config.DRAW_VERTEXES
                 elif event.key == pygame.K_e:
-                    DRAW_EDGES = not DRAW_EDGES
+                    DRAW_EDGES = not engine_config.DRAW_EDGES
                 elif event.key == pygame.K_f:
-                    DRAW_FACES = not DRAW_FACES
+                    DRAW_FACES = not engine_config.DRAW_FACES
 
         #Draw background (mostly for distinction of what is what)
-        window.fill(BACKGROUND_COLOR)
+        window.fill(engine_config.BACKGROUND_COLOR)
 
         #Draw Everything Else (make all transformations here so they're "less expensive" and then just use the points on projected points on the other drawing phases)
         transformed_3d = [] # Need this one because projection squashes z so we can't do z-sorting with the points of the list above
@@ -197,9 +177,9 @@ def gameloop():
         
         #Camera Setup
         #Camera Position
-        eye_x = CAMERA_R * cos(CAMERA_PHI) * sin(CAMERA_THETA)
-        eye_y = CAMERA_R * sin(CAMERA_PHI)
-        eye_z = CAMERA_R * cos(CAMERA_PHI) * cos(CAMERA_THETA)
+        eye_x = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * sin(engine_config.CAMERA_THETA)
+        eye_y = engine_config.CAMERA_R * sin(engine_config.CAMERA_PHI)
+        eye_z = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * cos(engine_config.CAMERA_THETA)
         #Define where is forward pointed to (from eye to target, target = (0,0,0))
         fx , fy, fz = -eye_x, -eye_y, -eye_z
         len_fwd = sqrt(fx*fx + fy*fy + fz*fz)
@@ -209,9 +189,9 @@ def gameloop():
             fx, fy, fz = 0, 0, 1   # fallback
 
         # Compute right = up × forward
-        rx = cos(CAMERA_THETA)
+        rx = cos(engine_config.CAMERA_THETA)
         ry = 0.0
-        rz = -sin(CAMERA_THETA)
+        rz = -sin(engine_config.CAMERA_THETA)
         len_r = sqrt(rx*rx + ry*ry + rz*rz)
         if len_r > 1e-10:
             rx /= len_r; ry /= len_r; rz /= len_r
@@ -242,8 +222,8 @@ def gameloop():
             cam_space.append(Point3D(x_cam, y_cam, z_cam))
 
             if z_cam > 1e-6:
-                screen_x = FOCAL_LENGTH * x_cam / z_cam + window_width / 2
-                screen_y = -FOCAL_LENGTH * y_cam / z_cam + window_height / 2
+                screen_x = engine_config.FOCAL_LENGTH * x_cam / z_cam + engine_config.window_width / 2
+                screen_y = -engine_config.FOCAL_LENGTH * y_cam / z_cam + engine_config.window_height / 2
                 projected_points.append(Point2D(screen_x, screen_y))
             else:
                 projected_points.append(None)
@@ -257,7 +237,7 @@ def gameloop():
                     all_visible = False
                     break
             if not all_visible: continue
-            if BACK_CULLING:
+            if engine_config.BACK_CULLING:
                 #These 3 points are used to calculated the normal of each face, making it possible to apply back-culling to them.
                 v0 = cam_space[face_idxs[0]]
                 v1 = cam_space[face_idxs[1]]
@@ -277,7 +257,7 @@ def gameloop():
         
         visible_verts = set()
         visible_edges = set()
-        if BACK_CULLING and (DRAW_EDGES or DRAW_VERTEXES):
+        if engine_config.BACK_CULLING and (engine_config.DRAW_EDGES or engine_config.DRAW_VERTEXES):
             for _, face_idxs in face_depth:
                 for idx in face_idxs:
                     visible_verts.add(idx)
@@ -290,14 +270,14 @@ def gameloop():
 
 
         #Now that all the math has been done, we can simply draw everything according to the previous sortings
-        if DRAW_FACES:
+        if engine_config.DRAW_FACES:
             for _, face_idxs in face_depth:
                 face_points = [projected_points[i] for i in face_idxs]
                 face(face_points)
                 
-        if DRAW_EDGES:
+        if engine_config.DRAW_EDGES:
             for edge in lines:
-                if BACK_CULLING:
+                if engine_config.BACK_CULLING:
                     if edge in visible_edges:
                         p1 = projected_points[edge[0]]
                         p2 = projected_points[edge[1]]
@@ -308,8 +288,8 @@ def gameloop():
                     if p1 is not None and p2 is not None: line(p1,p2)
                     
 
-        if DRAW_VERTEXES:
-            if BACK_CULLING:
+        if engine_config.DRAW_VERTEXES:
+            if engine_config.BACK_CULLING:
                 for i, pt in enumerate(projected_points):
                     if i in visible_verts and pt is not None:
                         point(pt)
@@ -318,8 +298,8 @@ def gameloop():
                     if pt is not None: point(pt)
         
         pygame.display.update()
-        clock.tick(FPS)
-    clock.tick(FPS)
+        clock.tick(engine_config.FPS)
+    clock.tick(engine_config.FPS)
     pygame.quit()
 
 gameloop()
