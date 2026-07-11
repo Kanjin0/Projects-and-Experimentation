@@ -25,6 +25,29 @@ def calculate_face_normal(p0:Point3D,p1:Point3D,p2:Point3D):
 
     return (a,b,c)
 
+def compute_face_normals(vertices: list[Point3D], faces:list[list[int]]) -> list[tuple[float, float, float]]:
+    normals = [] 
+
+    for face in faces:
+        p0,p1,p2 = vertices[face[0]], vertices[face[1]], vertices[face[2]]
+
+        v0 = (p1.x - p0.x, p1.y - p0.y, p1.z - p0.z)
+        v1 = (p2.x - p0.x, p2.y - p0.y, p2.z - p0.z)
+
+        nx = v0[1] * v1[2] - v0[2] * v1[1]
+        ny = v0[2] * v1[0] - v0[0] * v1[2]
+        nz = v0[0] * v1[1] - v0[1] * v1[0]
+
+         # Normalize
+        length = sqrt(nx*nx + ny*ny + nz*nz)
+        if length > 1e-10:
+            nx /= length; ny /= length; nz /= length
+        else:
+            nx = ny = nz = 0.0   # fallback (shouldn't happen for valid geometry)
+
+        normals.append((nx, ny, nz))
+
+    return normals
 #Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
 def screenCoord(point:Point2D):
     return Point2D((point.x + 1)*window_width/2, (-point.y + 1)*window_height/2)
