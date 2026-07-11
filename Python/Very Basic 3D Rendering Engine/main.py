@@ -7,30 +7,41 @@ from renderer import *
 import model_loader
 
 try:
-    solid, faces = model_loader.load_obj("low_poly_tree.obj",scale_to_fit=1.5)
+    solid, faces = model_loader.load_obj("sphere.obj",scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces = model_loader.load_hexagonal_prism()
 
+solid, faces = model_loader.load_torus()
+
+face_normals = compute_face_normals(solid,faces)
+
+lines = build_wireframe_from_faces(faces)
+
 # Preparation and Designation of constants
 pygame.init()
-
 window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
-
 clock = pygame.time.Clock()
 
 def gameloop():
 
+    global engine_config
+
     loop = True
     deltaTime = 1/engine_config.FPS
-    deltaZ = 1
     theta = pi*deltaTime/2
-    angle = 0
-    lines = build_wireframe_from_faces(faces)
+
+    angle_x = pi   # radians
+    angle_y = 0.0   # radians
+    angle_z = 0.0   # radians
 
     while loop:
-        angle = angle + theta
+
+        angle_x += 0.0   # radians
+        angle_y += 0.0   # radians
+        angle_z += 0.0   # radians
+
 
         '''#Some back and forth Motion
         if cos(angle/1.1) > 0:
@@ -45,8 +56,10 @@ def gameloop():
             elif event.type == pygame.MOUSEMOTION:
                 if pygame.mouse.get_pressed()[0]:  # left button held
                     dx, dy = event.rel
-                    engine_config.CAMERA_THETA += -dx * 0.005 # move object sideways
-                    engine_config.CAMERA_PHI += -dy * 0.005 # move object up and down
+                    
+                    angle_y -= dx * 0.005    # horizontal drag, spin model left/right
+                    angle_x += dy * 0.005    # vertical drag, tilt model up/down
+
             elif event.type == pygame.MOUSEWHEEL:
                 engine_config.FOCAL_LENGTH += event.y * 75
                 engine_config.FOCAL_LENGTH = max(100, min(2000, engine_config.FOCAL_LENGTH))
@@ -68,12 +81,12 @@ def gameloop():
         
         #Apply Transformations to all points (need to be stacked, both for translation and rotation)
         for p in solid:
-            rotations = rotation(
-                rotation(
-                    Point3D(p.x, p.y, p.z),1,0),2,
-                    0)
+            rot1 = rotation(Point3D(p.x, p.y, p.z), 0, angle_x)   # X
+            rot2 = rotation(rot1, 1, angle_y)                     # Y
+            rot3 = rotation(rot2, 2, angle_z)                     # Z
             
-            transformations = rotations; '''translation(rotations,2,deltaZ)'''
+            transformations = rot3
+
             transformed_3d.append(transformations)
 
             #We stopped defining the positions of the points projected into the screen here because now it'll be need to also take into accound the position of the camera
@@ -133,20 +146,42 @@ def gameloop():
 
         #Calculate the avg z of each of the faces and put it into a list to choose from later
         face_depth = []
-        for face_idxs in faces:
+
+        #Pre-Compute the Rotations for each face
+        cos_x, sin_x = cos(angle_x), sin(angle_x)
+        cos_y, sin_y = cos(angle_y), sin(angle_y)
+        cos_z, sin_z = cos(angle_z), sin(angle_z)
+        for face_index, face_idxs in enumerate(faces):
             all_visible = True
             for i in face_idxs:
                 if projected_points[i] is None:
                     all_visible = False
                     break
             if not all_visible: continue
-            if engine_config.BACK_CULLING:
-                #These 3 points are used to calculated the normal of each face, making it possible to apply back-culling to them.
-                v0 = cam_space[face_idxs[0]]
-                v1 = cam_space[face_idxs[1]]
-                v2 = cam_space[face_idxs[2]]
 
-                a,b,c = calculate_face_normal(v0,v1,v2)
+            if engine_config.BACK_CULLING:
+
+                # Get the pre-computed model-space normal
+                nx, ny, nz = face_normals[face_index]
+
+                # Rotate it by the SAME X, Y, Z angles 
+                # Rotate normal by X
+                nx1 = nx
+                ny1 = ny * cos_x - nz * sin_x
+                nz1 = ny * sin_x + nz * cos_x
+
+                # Rotate by Y
+                nx2 = nx1 * cos_y + nz1 * sin_y
+                ny2 = ny1
+                nz2 = -nx1 * sin_y + nz1 * cos_y
+
+                # Rotate by Z
+                nx3 = nx2 * cos_z - ny2 * sin_z
+                ny3 = nx2 * sin_z + ny2 * cos_z
+                nz3 = nz2
+
+                # Now in world space – dot product with camera forward
+                c = nx3 * fx + ny3 * fy + nz3 * fz
 
                 if c < -1e-5:
                     s = 0.0
