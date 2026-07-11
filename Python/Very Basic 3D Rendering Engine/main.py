@@ -1,5 +1,4 @@
 import pygame
-from typing import NamedTuple
 from math import cos, sin, pi, sqrt
 import engine_config
 from math_utils import *
