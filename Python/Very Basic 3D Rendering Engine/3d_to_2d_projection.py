@@ -5,14 +5,6 @@ import engine_config
 from math_utils import *
 from renderer import *
 
-# Preparation and Designation of constants
-pygame.init()
-
-window = engine_config.window
-pygame.display.set_caption(engine_config.window_name)
-
-clock = pygame.time.Clock()
-
 
 # ---------- HEXAGONAL PRISM ----------
 r = .7        # radius of the hexagon
@@ -41,6 +33,14 @@ faces = [
     [4, 5, 11, 10],              # Side 5
     [5, 0, 6, 11]                # Side 6
 ]
+
+# Preparation and Designation of constants
+pygame.init()
+
+window = engine_config.window
+pygame.display.set_caption(engine_config.window_name)
+
+clock = pygame.time.Clock()
 
 def gameloop():
 
