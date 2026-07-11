@@ -18,8 +18,8 @@ for i in range(6):
 
 # Vertices 0–5 = top, 6–11 = bottom
 faces = [
-    [0, 1, 2, 3, 4, 5],          # Top face (hexagon)
-    [6, 7, 8, 9, 10, 11],        # Bottom face (hexagon)
+    [5, 4, 3, 2, 1, 0],          # Top face (fixed: outward +Y)
+    [6, 7, 8, 9, 10, 11],        # Bottom face (unchanged: outward -Y)
     [0, 1, 7, 6],                # Side 1
     [1, 2, 8, 7],                # Side 2
     [2, 3, 9, 8],                # Side 3
