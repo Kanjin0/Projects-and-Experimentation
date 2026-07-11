@@ -3,12 +3,12 @@ from typing import NamedTuple
 from math import cos, sin, pi, sqrt
 import engine_config
 from math_utils import *
+from renderer import *
 
 # Preparation and Designation of constants
 pygame.init()
 
-
-window = pygame.display.set_mode((engine_config.window_width,engine_config.window_height))
+window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
 
 clock = pygame.time.Clock()
@@ -41,54 +41,6 @@ faces = [
     [4, 5, 11, 10],              # Side 5
     [5, 0, 6, 11]                # Side 6
 ]
-
-#Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
-def point(point:Point2D):
-    size = 10
-    pygame.draw.rect(window, engine_config.VERTEX_COLOR,(point.x - size/2, point.y- size/2,size,size))
-
-#Draw a line conecting both points specified
-def line(point1:Point2D, point2:Point2D):
-    size = 2
-    if engine_config.DRAW_FACES: size = 5
-    pygame.draw.line(window,engine_config.EDGE_COLOR, (point1.x, point1.y), (point2.x, point2.y),size)
-
-#Draw a face of the model conecting all points specified
-def face(points:list):
-    pygame.draw.polygon(window,engine_config.FACE_COLOR,points)
-
-#Build a list of tuples representing edges from pre-defined faces
-def build_wireframe_from_faces(faces:list):
-    edges = set()
-    for face in faces:
-        for i in range(len(face)):
-            v1 = face[i]
-            v2 = face[(i+1) % len(face)]
-
-            edge = tuple(sorted((v1,v2)))
-            edges.add(edge)
-    return list(edges)
-
-#Use x' = x/z and y' = y/z to obtain the projection of the corrected coordinates from the function above into the screen ("defining" a plane from where the drawings start being seen)
-def projection(point:Point3D):
-    return Point2D(point.x/point.z, point.y/point.z)
-
-#Move point in a direction specified by the axis (0 = "x" Axis, 1 = "y" Axis, 2+ = "z" Axis)
-def translation(point:Point3D, axis:int, deltaZ,):
-    if axis == 0:
-        return Point3D(point.x + deltaZ,point.y,point.z)
-    elif axis == 1:
-        return Point3D(point.x,point.y + deltaZ,point.z)
-    return Point3D(point.x,point.y,point.z + deltaZ)
-
-#Rotate point around a specified axis (0 = "x" Axis, 1 = "y" Axis, 2+ = "z" Axis)
-def rotation(point:Point3D, axis:int, angle):
-    if axis == 0:
-        return Point3D(point.x,point.y*cos(angle) - point.z*sin(angle),point.y*sin(angle) + point.z*cos(angle))
-    elif axis == 1:
-        return Point3D(point.x*cos(angle) + point.z*sin(angle),point.y, -point.x*sin(angle) + point.z*cos(angle))
-    return Point3D(point.x*cos(angle) - point.y*sin(angle),point.x*sin(angle)+ point.y*cos(angle),point.z)
-
 
 def gameloop():
 

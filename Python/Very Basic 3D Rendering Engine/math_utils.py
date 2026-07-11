@@ -1,5 +1,6 @@
 from typing import NamedTuple
 from engine_config import window_height, window_width
+from math import cos, sin, sqrt
 
 class Point2D(NamedTuple):
     x: float
@@ -27,3 +28,23 @@ def calculate_face_normal(p0:Point3D,p1:Point3D,p2:Point3D):
 #Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
 def screenCoord(point:Point2D):
     return Point2D((point.x + 1)*window_width/2, (-point.y + 1)*window_height/2)
+
+#Use x' = x/z and y' = y/z to obtain the projection of the corrected coordinates from the function above into the screen ("defining" a plane from where the drawings start being seen)
+def projection(point:Point3D):
+    return Point2D(point.x/point.z, point.y/point.z)
+
+#Move point in a direction specified by the axis (0 = "x" Axis, 1 = "y" Axis, 2+ = "z" Axis)
+def translation(point:Point3D, axis:int, deltaZ,):
+    if axis == 0:
+        return Point3D(point.x + deltaZ,point.y,point.z)
+    elif axis == 1:
+        return Point3D(point.x,point.y + deltaZ,point.z)
+    return Point3D(point.x,point.y,point.z + deltaZ)
+
+#Rotate point around a specified axis (0 = "x" Axis, 1 = "y" Axis, 2+ = "z" Axis)
+def rotation(point:Point3D, axis:int, angle):
+    if axis == 0:
+        return Point3D(point.x,point.y*cos(angle) - point.z*sin(angle),point.y*sin(angle) + point.z*cos(angle))
+    elif axis == 1:
+        return Point3D(point.x*cos(angle) + point.z*sin(angle),point.y, -point.x*sin(angle) + point.z*cos(angle))
+    return Point3D(point.x*cos(angle) - point.y*sin(angle),point.x*sin(angle)+ point.y*cos(angle),point.z)

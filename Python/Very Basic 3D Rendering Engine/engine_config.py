@@ -1,10 +1,14 @@
 from math import pi
+import pygame
+
 
 #Window
 window_name = "3D in 2D projection"
 window_height = 900
 window_width = 900
 BACKGROUND_COLOR = (80, 80, 80)
+
+window = pygame.display.set_mode((window_width,window_height))
 
 # FrameRate
 FPS = 60
