@@ -7,13 +7,10 @@ from renderer import *
 import model_loader
 
 try:
-    solid, faces = model_loader.load_obj("cube.obj")
+    solid, faces = model_loader.load_obj("low_poly_tree.obj",scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces = model_loader.load_hexagonal_prism()
-
-
-solid , faces = model_loader.load_hexagonal_prism()
 
 # Preparation and Designation of constants
 pygame.init()
@@ -152,10 +149,16 @@ def gameloop():
                 a,b,c = calculate_face_normal(v0,v1,v2)
 
                 if c < -1e-5:
-                    avg_z = sum(cam_space[i].z for i in face_idxs) / len(face_idxs)
+                    s = 0.0
+                    for i in face_idxs:
+                        s += cam_space[i].z
+                    avg_z = s / len(face_idxs)
                     face_depth.append((avg_z,face_idxs))
             else:
-                avg_z = sum(cam_space[i].z for i in face_idxs) / len(face_idxs)
+                s = 0.0
+                for i in face_idxs:
+                    s += cam_space[i].z
+                avg_z = s / len(face_idxs)
                 face_depth.append((avg_z,face_idxs))
 
         face_depth.sort(key= lambda x: x[0], reverse= True) #We use reverse because: our model has z increasing into the screen so larger z means farther into the back

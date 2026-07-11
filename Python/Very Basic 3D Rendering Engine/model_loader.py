@@ -2,25 +2,68 @@ from math_utils import Point2D, Point3D
 from math import cos, sin, pi
 import os
 
-MODELS_DIR = "Models"
+# Get the directory where this file (model_loader.py) is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Models folder is in the same directory as model_loader.py (or one level up?)
+# Usually, model_loader.py is in the same folder as main.py, so:
+MODELS_DIR = os.path.join(SCRIPT_DIR, "Models")
 
 # Completely define a solid using information from a .obj file
 def load_obj(filename:str, scale_to_fit = 1.5) -> tuple[list[Point3D], list[list[int]]]:
-    filepath = os.path.join(MODELS_DIR,filename)
-    print(filepath)
+
+    #Get the file 
+    filepath = os.path.join(MODELS_DIR, filename)
+    print(f"Attempting to load: {filepath}")   # temporary debug
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Model file not found: {filepath}")
-    else:
-        vertices_list, faces_list = [], []
-        with open(filepath,"r") as file:
+    
+    vertices_list, faces_list = [], []
+    with open(filepath,"r") as file:
 
-            for line in file:
-                if line.startswith("v "):
-                    vertCoords = line.strip().split(sep = " ")
-                    print(vertCoords)
+        for line in file:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split()
+            if line.startswith("v "):
+                x, y, z = map(float,parts[1:4])
+                vertices_list.append(Point3D(x,y,z))
+            
+            if line.startswith("f "):
+                faces = parts[1:]
+                face_indexes = []
+                for vert in faces:
+                    v_index = int(vert.split("/")[0]) - 1 #bcs .obj files use lists starting at index 1
+                    face_indexes.append(v_index)
+                faces_list.append(face_indexes)
+    
+    #Center the Model
+    min_x = min(p.x for p in vertices_list)
+    min_y = min(p.y for p in vertices_list)
+    min_z = min(p.z for p in vertices_list)
 
+    max_x = max(p.x for p in vertices_list)
+    max_y = max(p.y for p in vertices_list)
+    max_z = max(p.z for p in vertices_list)
 
-        return vertices_list , faces_list
+    cx = (min_x + max_x) / 2.0
+    cy = (min_y + max_y) / 2.0
+    cz = (min_z + max_z) / 2.0
+
+    max_extent = max(max_x - min_x, max_y - min_y, max_z - min_z)
+    if max_extent == 0:
+        max_extent = 1.0
+    scale = scale_to_fit / max_extent
+
+    #Scalling and translation to the correct place
+    for i , p in enumerate(vertices_list):
+        vertices_list[i] = Point3D(
+             (p.x - cx) * scale,
+             (p.y - cy) * scale,
+             (p.z - cz) * scale 
+            )
+
+    return vertices_list , faces_list
 
 def load_hexagonal_prism(base_radius:float = 0.7, half_height:float = 0.7) -> tuple[list[Point3D], list[list[int]]]:
     #NOTE: THIS WAS OBTAINED THROUGH A PROMPT ASKING FOR MORE MODELS TO TEST THE CODE WITH
