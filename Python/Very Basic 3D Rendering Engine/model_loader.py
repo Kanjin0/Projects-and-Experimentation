@@ -189,7 +189,6 @@ def load_sphere(radius:float = 1.5, num_lats:int = 20, num_longs:int = 20) -> tu
     
     return vertices, faces
     
-
 def load_torus(major_radius:float = 1, minor_radius:float = 0.2, num_rings:int = 40, num_segments:int = 15) -> tuple[list[Point3D], list[list[int]]]:
     #NOTE: THIS WAS OBTAINED THROUGH A PROMPT ASKING FOR MORE MODELS TO TEST THE CODE WITH
     """
@@ -223,3 +222,15 @@ def load_torus(major_radius:float = 1, minor_radius:float = 0.2, num_rings:int =
             faces.append([v1, v2, v3, v4])
     
     return vertices, faces
+
+def load_l_shape():
+    solid = [
+        Point3D(-1, -1, 0),
+        Point3D( 1, -1, 0),
+        Point3D( 1,  0, 0),
+        Point3D( 0,  0, 0),
+        Point3D( 0,  1, 0),
+        Point3D(-1,  1, 0),
+    ]
+    faces = [[0,1,2,3,4,5]]
+    return solid, faces

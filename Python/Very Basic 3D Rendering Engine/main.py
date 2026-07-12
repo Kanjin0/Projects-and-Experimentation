@@ -5,63 +5,60 @@ from math_utils import *
 from renderer import *
 import model_loader
 
-'''try:
-    solid, faces = model_loader.load_obj("cube.obj",scale_to_fit=1.5)
+# Load model – choose one:
+try:
+    solid, faces = model_loader.load_obj("cube.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
-    solid, faces = model_loader.load_hexagonal_prism()'''
+    solid, faces = model_loader.load_hexagonal_prism()
 
-solid, faces = model_loader.load_cube()
+# Uncomment to force a specific model (e.g., for testing)
+# solid, faces = model_loader.load_hexagonal_prism()
 
-face_normals = compute_face_normals(solid,faces)
+# Pre‑compute triangles once (in model space)
+triangles = precompute_triangles(solid, faces)
+print(f"Loaded {len(triangles)} triangles from {len(faces)} faces")
 
+# Build wireframe edges from the ORIGINAL faces (not triangles)
 lines = build_wireframe_from_faces(faces)
 
-# Preparation and Designation of constants
+# Pygame setup
 pygame.init()
 window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
 clock = pygame.time.Clock()
 
-def gameloop():
+# Z‑buffer is already initialized in engine_config
 
+def gameloop():
     global engine_config
 
     loop = True
-    deltaTime = 1/engine_config.FPS
-    theta = pi*deltaTime/2
+    deltaTime = 1 / engine_config.FPS
+    theta = pi * deltaTime / 2
 
-    angle_x = pi   # radians
-    angle_y = 0.0   # radians
-    angle_z = 0.0   # radians
+    angle_x = pi      # Start with model upright (180° around X)
+    angle_y = 0.0
+    angle_z = 0.0
+
+    # (Optional) frame counter – keep for occasional stats
+    frame_count = 0
 
     while loop:
+        frame_count += 1
+        # If you want automatic rotation, uncomment:
+        # angle_y += theta * 0.5
+        # angle_x += theta * 0.1
 
-        angle_x += 0.0   # radians
-        angle_y += 0.0   # radians
-        angle_z += 0.0   # radians
-
-
-        '''#Some back and forth Motion
-        if cos(angle/1.1) > 0:
-            deltaZ = min(deltaZ + deltaTime/2,3)
-        else:
-            deltaZ = max(deltaZ - deltaTime/2,-3)'''
-        
-        #Handle events (might implement drawing a solid by clicking to add vertexes)
+        # ---- Event Handling ----
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 loop = False
             elif event.type == pygame.MOUSEMOTION:
                 if pygame.mouse.get_pressed()[0]:  # left button held
                     dx, dy = event.rel
-                    
-                    # Because we're movind the angles values we're moving the model instead of moving the camera around the model
-                    # For now it's working better than how it was when the Camera was moving around the model so I'll let it be but there might
-                    # Come with problems later if I want the models to start rotating and translating again
-                    angle_y -= dx * 0.005    # horizontal drag, spin model left/right
-                    angle_x += dy * 0.005    # vertical drag, tilt model up/down
-
+                    angle_y -= dx * 0.005
+                    angle_x += dy * 0.005
             elif event.type == pygame.MOUSEWHEEL:
                 engine_config.FOCAL_LENGTH += event.y * 75
                 engine_config.FOCAL_LENGTH = max(100, min(2000, engine_config.FOCAL_LENGTH))
@@ -75,38 +72,29 @@ def gameloop():
                 elif event.key == pygame.K_f:
                     engine_config.DRAW_FACES = not engine_config.DRAW_FACES
 
-        #Draw background (mostly for distinction of what is what)
+        # ---- Clear Screen ----
         window.fill(engine_config.BACKGROUND_COLOR)
 
-        #Draw Everything Else (make all transformations here so they're "less expensive" and then just use the points on projected points on the other drawing phases)
-        transformed_3d = [] # Need this one because projection squashes z so we can't do z-sorting with the points of the list above
-        
-        #Apply Transformations to all points (need to be stacked, both for translation and rotation)
+        # ---- Transform Vertices (X → Y → Z) ----
+        transformed_3d = []
         for p in solid:
-            rot1 = rotation(Point3D(p.x, p.y, p.z), 0, angle_x)   # X
-            rot2 = rotation(rot1, 1, angle_y)                     # Y
-            rot3 = rotation(rot2, 2, angle_z)                     # Z
-            
-            transformations = rot3
+            rot1 = rotation(Point3D(p.x, p.y, p.z), 0, angle_x)
+            rot2 = rotation(rot1, 1, angle_y)
+            rot3 = rotation(rot2, 2, angle_z)
+            transformed_3d.append(rot3)
 
-            transformed_3d.append(transformations)
-
-            #We stopped defining the positions of the points projected into the screen here because now it'll be need to also take into accound the position of the camera
-        
-        #Camera Setup
-        #Camera Position
+        # ---- Camera Setup & Projection ----
         eye_x = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * sin(engine_config.CAMERA_THETA)
         eye_y = engine_config.CAMERA_R * sin(engine_config.CAMERA_PHI)
         eye_z = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * cos(engine_config.CAMERA_THETA)
-        #Define where is forward pointed to (from eye to target, target = (0,0,0))
-        fx , fy, fz = -eye_x, -eye_y, -eye_z
+
+        fx, fy, fz = -eye_x, -eye_y, -eye_z
         len_fwd = sqrt(fx*fx + fy*fy + fz*fz)
         if len_fwd > 1e-10:
             fx /= len_fwd; fy /= len_fwd; fz /= len_fwd
         else:
-            fx, fy, fz = 0, 0, 1   # fallback
+            fx, fy, fz = 0, 0, 1
 
-        # Compute right = up × forward
         rx = cos(engine_config.CAMERA_THETA)
         ry = 0.0
         rz = -sin(engine_config.CAMERA_THETA)
@@ -114,9 +102,8 @@ def gameloop():
         if len_r > 1e-10:
             rx /= len_r; ry /= len_r; rz /= len_r
         else:
-            rx, ry, rz = 1.0, 0.0, 0.0   # fallback (should never happen)
+            rx, ry, rz = 1.0, 0.0, 0.0
 
-        # Compute up = forward × right (right-handed basis)
         upx = fy * rz - fz * ry
         upy = fz * rx - fx * rz
         upz = fx * ry - fy * rx
@@ -124,7 +111,7 @@ def gameloop():
         if len_up > 1e-10:
             upx /= len_up; upy /= len_up; upz /= len_up
         else:
-            upx, upy, upz = 0.0, 1.0, 0.0   # fallback (unlikely)
+            upx, upy, upz = 0.0, 1.0, 0.0
 
         cam_space = []
         projected_points = []
@@ -139,101 +126,94 @@ def gameloop():
             z_cam = Vx * fx + Vy * fy + Vz * fz
             cam_space.append(Point3D(x_cam, y_cam, z_cam))
 
-            if z_cam > 1e-6:
+            if z_cam > 1e-9:
                 screen_x = engine_config.FOCAL_LENGTH * x_cam / z_cam + engine_config.window_width / 2
                 screen_y = -engine_config.FOCAL_LENGTH * y_cam / z_cam + engine_config.window_height / 2
                 projected_points.append(Point2D(screen_x, screen_y))
             else:
                 projected_points.append(None)
 
-        #Calculate the avg z of each of the faces and put it into a list to choose from later
-        face_depth = []
+        # ---- (Optional: print vertices behind camera occasionally) ----
+        # if frame_count % 120 == 0:
+        #     none_count = sum(1 for pt in projected_points if pt is None)
+        #     print(f"Frame {frame_count}: {none_count} vertices behind camera")
 
-        #Pre-Compute the Rotations for each face
-        cos_x, sin_x = cos(angle_x), sin(angle_x)
-        cos_y, sin_y = cos(angle_y), sin(angle_y)
-        cos_z, sin_z = cos(angle_z), sin(angle_z)
-        for face_index, face_idxs in enumerate(faces):
-            all_visible = True
-            for i in face_idxs:
-                if projected_points[i] is None:
-                    all_visible = False
-                    break
-            if not all_visible: continue
-
-            if engine_config.BACK_CULLING:
-
-                # Get the pre-computed model-space normal
-                nx, ny, nz = face_normals[face_index]
-
-                # Rotate it by the SAME X, Y, Z angles 
-                # Rotate normal by X
-                nx1 = nx
-                ny1 = ny * cos_x - nz * sin_x
-                nz1 = ny * sin_x + nz * cos_x
-
-                # Rotate by Y
-                nx2 = nx1 * cos_y + nz1 * sin_y
-                ny2 = ny1
-                nz2 = -nx1 * sin_y + nz1 * cos_y
-
-                # Rotate by Z
-                nx3 = nx2 * cos_z - ny2 * sin_z
-                ny3 = nx2 * sin_z + ny2 * cos_z
-                nz3 = nz2
-
-                # Now in world space – dot product with camera forward
-                c = nx3 * fx + ny3 * fy + nz3 * fz
-
-                if c < -1e-5:
-                    s = 0.0
-                    for i in face_idxs:
-                        s += cam_space[i].z
-                    avg_z = s / len(face_idxs)
-                    face_depth.append((avg_z,face_idxs))
-            else:
-                s = 0.0
-                for i in face_idxs:
-                    s += cam_space[i].z
-                avg_z = s / len(face_idxs)
-                face_depth.append((avg_z,face_idxs))
-
-        face_depth.sort(key= lambda x: x[0], reverse= True) #We use reverse because: our model has z increasing into the screen so larger z means farther into the back
-                                                            #Therefore, we those faces with larger z in the front of the list so when we draw the ones with smaller z, they get drawn over the 1st ones
-        
+        # ---- Visible Edges & Vertices (for wireframe overlay) ----
         visible_verts = set()
         visible_edges = set()
         if engine_config.BACK_CULLING and (engine_config.DRAW_EDGES or engine_config.DRAW_VERTEXES):
-            for _, face_idxs in face_depth:
-                for idx in face_idxs:
-                    visible_verts.add(idx)
-                for i in range (len(face_idxs)):
-                    v1 = face_idxs[i]
-                    v2 = face_idxs[(i+1) % len(face_idxs)]
-                    edg = tuple(sorted((v1,v2)))
-                    visible_edges.add(edg)
+            for face_idxs in faces:
+                all_visible = True
+                for i in face_idxs:
+                    if projected_points[i] is None:
+                        all_visible = False
+                        break
+                if not all_visible:
+                    continue
+                v0 = cam_space[face_idxs[0]]
+                v1 = cam_space[face_idxs[1]]
+                v2 = cam_space[face_idxs[2]]
+                a, b, c = calculate_face_normal(v0, v1, v2)
+                if c < -1e-5:
+                    for idx in face_idxs:
+                        visible_verts.add(idx)
+                    for i in range(len(face_idxs)):
+                        v1 = face_idxs[i]
+                        v2 = face_idxs[(i + 1) % len(face_idxs)]
+                        visible_edges.add(tuple(sorted((v1, v2))))
 
-
-
-        #Now that all the math has been done, we can simply draw everything according to the previous sortings
+        # ---- Draw Faces (Z‑buffered) ----
         if engine_config.DRAW_FACES:
-            for _, face_idxs in face_depth:
-                face_points = [projected_points[i] for i in face_idxs]
-                face(face_points)
-                
+            # Reset Z‑buffer for this frame
+            for row in engine_config.Z_BUFFER:
+                for i in range(len(row)):
+                    row[i] = float('inf')
+
+            # Draw triangles in ANY order
+            for tri in triangles:
+                # Visibility check
+                all_visible = True
+                for idx in tri:
+                    if projected_points[idx] is None:
+                        all_visible = False
+                        break
+                if not all_visible:
+                    continue
+
+                # Back‑face culling
+                if engine_config.BACK_CULLING:
+                    v0 = cam_space[tri[0]]
+                    v1 = cam_space[tri[1]]
+                    v2 = cam_space[tri[2]]
+                    a, b, c = calculate_face_normal(v0, v1, v2)
+                    if c >= -1e-5:
+                        continue
+
+                # Get screen points and depths
+                p0 = projected_points[tri[0]]
+                p1 = projected_points[tri[1]]
+                p2 = projected_points[tri[2]]
+                z0 = cam_space[tri[0]].z
+                z1 = cam_space[tri[1]].z
+                z2 = cam_space[tri[2]].z
+
+                #Debug to see the Triangulation
+                pygame.draw.polygon(window, (0,0,0), [p0,p1,p2], 2)
+
+                # Rasterize the triangle (with Z‑buffer)
+                rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, engine_config.FACE_COLOR)
+
+        # ---- Draw Edges ----
         if engine_config.DRAW_EDGES:
             for edge in lines:
-                if engine_config.BACK_CULLING:
-                    if edge in visible_edges:
-                        p1 = projected_points[edge[0]]
-                        p2 = projected_points[edge[1]]
-                        if p1 is not None and p2 is not None: line(p1,p2)
-                else:
-                    p1 = projected_points[edge[0]]
-                    p2 = projected_points[edge[1]]
-                    if p1 is not None and p2 is not None: line(p1,p2)
-                    
+                if engine_config.BACK_CULLING and edge not in visible_edges:
+                    continue
+                p1 = projected_points[edge[0]]
+                p2 = projected_points[edge[1]]
+                if p1 is not None and p2 is not None:
+                    line(p1, p2)
 
+        # ---- Draw Vertices ----
         if engine_config.DRAW_VERTEXES:
             if engine_config.BACK_CULLING:
                 for i, pt in enumerate(projected_points):
@@ -241,11 +221,13 @@ def gameloop():
                         point(pt)
             else:
                 for pt in projected_points:
-                    if pt is not None: point(pt)
-        
+                    if pt is not None:
+                        point(pt)
+
         pygame.display.update()
         clock.tick(engine_config.FPS)
-    clock.tick(engine_config.FPS)
+
     pygame.quit()
 
-gameloop()
+if __name__ == "__main__":
+    gameloop()
