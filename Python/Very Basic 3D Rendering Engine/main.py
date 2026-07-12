@@ -9,7 +9,7 @@ import model_loader
 
 # ---- Load model ----
 try:
-    solid, faces, solid_normals = model_loader.load_obj("cat.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals = model_loader.load_obj("sphere.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces = model_loader.load_hexagonal_prism()

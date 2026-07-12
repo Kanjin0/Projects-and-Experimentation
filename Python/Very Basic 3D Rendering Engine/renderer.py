@@ -165,6 +165,8 @@ def rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
         vx, vy, vz = 0.0, 0.0, 1.0   # view direction (simplified)
 
     # ---- Flat colour ----
+    if base_color is None:
+        base_color = FACE_COLOR
     r_base, g_base, b_base = base_color
 
     # ---- Tile loops ----
@@ -206,7 +208,11 @@ def rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
                                 # Flat shading
                                 pixels[x, y] = (r_base, g_base, b_base)
                             else:
-                                # Phong shading – interpolate normal
+                                # ---- Phong shading ----
+                                # Tell type checker these are guaranteed non‑None
+                                assert n0 is not None and n1 is not None and n2 is not None
+
+                                # Interpolate normal
                                 nx = u * n0.x + v * n1.x + w * n2.x
                                 ny = u * n0.y + v * n1.y + w * n2.y
                                 nz = u * n0.z + v * n1.z + w * n2.z
