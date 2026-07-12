@@ -5,13 +5,13 @@ from math_utils import *
 from renderer import *
 import model_loader
 
-try:
-    solid, faces = model_loader.load_obj("sphere.obj",scale_to_fit=1.5)
+'''try:
+    solid, faces = model_loader.load_obj("cube.obj",scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
-    solid, faces = model_loader.load_hexagonal_prism()
+    solid, faces = model_loader.load_hexagonal_prism()'''
 
-solid, faces = model_loader.load_torus()
+solid, faces = model_loader.load_cube()
 
 face_normals = compute_face_normals(solid,faces)
 
@@ -56,6 +56,9 @@ def gameloop():
                 if pygame.mouse.get_pressed()[0]:  # left button held
                     dx, dy = event.rel
                     
+                    # Because we're movind the angles values we're moving the model instead of moving the camera around the model
+                    # For now it's working better than how it was when the Camera was moving around the model so I'll let it be but there might
+                    # Come with problems later if I want the models to start rotating and translating again
                     angle_y -= dx * 0.005    # horizontal drag, spin model left/right
                     angle_x += dy * 0.005    # vertical drag, tilt model up/down
 
