@@ -207,6 +207,37 @@ def precompute_triangles(vertices: list[Point3D], faces: list[list[int]]) -> lis
         all_triangles.extend(triangulate_face(vertices, face))
     return all_triangles
 
+def compute_vertex_normals(vertices, faces):
+    """Compute per-vertex normals by averaging face normals."""
+    normals = [Point3D(0, 0, 0) for _ in vertices]
+    for face in faces:
+        if len(face) < 3:
+            continue
+        v0 = vertices[face[0]]
+        v1 = vertices[face[1]]
+        v2 = vertices[face[2]]
+        # Compute face normal
+        edge1 = (v1.x - v0.x, v1.y - v0.y, v1.z - v0.z)
+        edge2 = (v2.x - v0.x, v2.y - v0.y, v2.z - v0.z)
+        nx = edge1[1] * edge2[2] - edge1[2] * edge2[1]
+        ny = edge1[2] * edge2[0] - edge1[0] * edge2[2]
+        nz = edge1[0] * edge2[1] - edge1[1] * edge2[0]
+        length = sqrt(nx*nx + ny*ny + nz*nz)
+        if length > 1e-10:
+            nx /= length; ny /= length; nz /= length
+            for idx in face:
+                normals[idx] = Point3D(normals[idx].x + nx,
+                                       normals[idx].y + ny,
+                                       normals[idx].z + nz)
+    # Normalize all
+    for i, n in enumerate(normals):
+        length = sqrt(n.x*n.x + n.y*n.y + n.z*n.z)
+        if length > 1e-10:
+            normals[i] = Point3D(n.x/length, n.y/length, n.z/length)
+        else:
+            normals[i] = Point3D(0, 1, 0)
+    return normals
+
 #Transform normal cartesian coordinates from -1 ... 1 -> 0 ... 2 -> 0 ... 1 -> 0 ... window_width/height
 def screenCoord(point:Point2D):
     return Point2D((point.x + 1)*window_width/2, (-point.y + 1)*window_height/2)

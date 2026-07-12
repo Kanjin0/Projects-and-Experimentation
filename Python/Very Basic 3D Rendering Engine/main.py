@@ -1,30 +1,69 @@
+import os
 import pygame
-from math import cos, sin, pi, sqrt
-from array import array          # for fast Z‑buffer reset
+from math import cos, sin, sqrt
+from array import array
 import engine_config
 from math_utils import *
 from renderer import *
 import model_loader
 
-# Load model (choose one)
+# ---- Debug: check current directory and Models folder ----
+print("Current working directory:", os.getcwd())
+if os.path.exists("Models"):
+    print("Files in Models:", os.listdir("Models"))
+else:
+    print("Models folder not found – create it and place .obj files inside.")
+
+# ---- Load model ----
 try:
-    solid, faces = model_loader.load_obj("cube.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals = model_loader.load_obj("sphere.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces = model_loader.load_hexagonal_prism()
+    solid_normals = compute_vertex_normals(solid, faces)
 
-# Pre‑compute triangles once (in model space)
+# ---- Safety: ensure normals are valid ----
+if len(solid_normals) != len(solid):
+    print(f"Warning: normals count ({len(solid_normals)}) != vertices ({len(solid)}) – recomputing.")
+    solid_normals = compute_vertex_normals(solid, faces)
+
+if any(n is None for n in solid_normals):
+    print("Warning: some normals are None – recomputing.")
+    solid_normals = compute_vertex_normals(solid, faces)
+
+if any(n is None for n in solid_normals):
+    print("Falling back to default normals (0,1,0).")
+    solid_normals = [Point3D(0, 1, 0) for _ in solid]
+
+print(f"Loaded {len(solid)} vertices, {len(faces)} faces, {len(solid_normals)} normals.")
+print(f"First normal: {solid_normals[0] if solid_normals else 'None'}")
+
+# ---- Pre‑compute triangles ----
 triangles = precompute_triangles(solid, faces)
-print(f"Loaded {len(triangles)} triangles from {len(faces)} faces")
+print(f"Pre‑computed {len(triangles)} triangles.")
 
 # Build wireframe edges from the ORIGINAL faces (not triangles)
 lines = build_wireframe_from_faces(faces)
 
-# Pygame setup
+# ---- Pygame setup ----
 pygame.init()
 window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
 clock = pygame.time.Clock()
+
+# ---- Helper to compute vertex color ----
+def get_vertex_color(normal):
+    if normal is None:
+        return engine_config.FACE_COLOR
+    return compute_vertex_color(
+        normal,
+        engine_config.FACE_COLOR,
+        engine_config.AMBIENT_STRENGTH,
+        engine_config.LIGHT_DIR,
+        engine_config.SPECULAR_STRENGTH,
+        engine_config.SHININESS
+    )
+
 
 def gameloop():
     global engine_config
@@ -38,9 +77,8 @@ def gameloop():
     angle_z = 0.0
 
     while loop:
-        # (Optional) automatic rotation – comment out if you prefer mouse control
+        # Optional automatic rotation – uncomment to test
         # angle_y += theta * 0.5
-        # angle_x += theta * 0.1
 
         # ---- Event Handling ----
         for event in pygame.event.get():
@@ -63,17 +101,29 @@ def gameloop():
                     engine_config.DRAW_EDGES = not engine_config.DRAW_EDGES
                 elif event.key == pygame.K_f:
                     engine_config.DRAW_FACES = not engine_config.DRAW_FACES
+                elif event.key == pygame.K_l:  # cycle shading
+                    engine_config.SHADING_MODE = (engine_config.SHADING_MODE + 1) % 3
+                    modes = ["None", "Gouraud", "Phong"]
+                    print(f"Shading mode: {modes[engine_config.SHADING_MODE]}")
 
         # ---- Clear Screen ----
         window.fill(engine_config.BACKGROUND_COLOR)
 
-        # ---- Transform Vertices (X → Y → Z) ----
+        # ---- Transform Vertices & Normals ----
         transformed_3d = []
-        for p in solid:
+        transformed_normals = []
+        for i, p in enumerate(solid):
             rot1 = rotation(Point3D(p.x, p.y, p.z), 0, angle_x)
             rot2 = rotation(rot1, 1, angle_y)
             rot3 = rotation(rot2, 2, angle_z)
             transformed_3d.append(rot3)
+
+            # Rotate normals by the same angles (directions only)
+            n = solid_normals[i]
+            nr1 = rotation(Point3D(n.x, n.y, n.z), 0, angle_x)
+            nr2 = rotation(nr1, 1, angle_y)
+            nr3 = rotation(nr2, 2, angle_z)
+            transformed_normals.append(nr3)
 
         # ---- Camera Setup & Projection ----
         eye_x = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * sin(engine_config.CAMERA_THETA)
@@ -151,13 +201,13 @@ def gameloop():
 
         # ---- Draw Faces (Z‑buffered) ----
         if engine_config.DRAW_FACES:
-            # Fast Z‑buffer reset using slice assignment
+            # Fast Z‑buffer reset
             engine_config.Z_BUFFER[:] = array('f', [float('inf')]) * (engine_config.window_width * engine_config.window_height)
 
             # Create PixelArray for faster drawing
             pixels = pygame.PixelArray(window)
 
-            # Draw triangles in ANY order (no sorting!)
+            # Draw triangles in ANY order
             for tri in triangles:
                 # Visibility check
                 all_visible = True
@@ -185,10 +235,32 @@ def gameloop():
                 z1 = cam_space[tri[1]].z
                 z2 = cam_space[tri[2]].z
 
-                # Rasterize triangle
-                rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, engine_config.FACE_COLOR, pixels)
+                # ---- Shading Mode Dispatch ----
+                mode = engine_config.SHADING_MODE
+                if mode == engine_config.SHADING_NONE:
+                    rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
+                                  base_color=engine_config.FACE_COLOR)
+                elif mode == engine_config.SHADING_GOURAUD:
+                    n0 = transformed_normals[tri[0]]
+                    n1 = transformed_normals[tri[1]]
+                    n2 = transformed_normals[tri[2]]
+                    c0 = get_vertex_color(n0)
+                    c1 = get_vertex_color(n1)
+                    c2 = get_vertex_color(n2)
+                    if tri == triangles[0]:  # print only first triangle
+                        print(f"Gouraud colors: {c0}, {c1}, {c2}")
+                    rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
+                                  color0=c0, color1=c1, color2=c2,
+                                  base_color=engine_config.FACE_COLOR)
+                else:  # PHONG
+                    n0 = transformed_normals[tri[0]]
+                    n1 = transformed_normals[tri[1]]
+                    n2 = transformed_normals[tri[2]]
+                    rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
+                                  n0=n0, n1=n1, n2=n2,
+                                  base_color=engine_config.FACE_COLOR)
 
-            # Delete PixelArray to unlock the surface
+            # Release PixelArray
             del pixels
 
         # ---- Draw Edges (wireframe overlay) ----
