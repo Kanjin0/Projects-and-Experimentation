@@ -1,19 +1,17 @@
 import pygame
 from math import cos, sin, pi, sqrt
+from array import array          # for fast Z‑buffer reset
 import engine_config
 from math_utils import *
 from renderer import *
 import model_loader
 
-# Load model – choose one:
+# Load model (choose one)
 try:
     solid, faces = model_loader.load_obj("cube.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces = model_loader.load_hexagonal_prism()
-
-# Uncomment to force a specific model (e.g., for testing)
-# solid, faces = model_loader.load_hexagonal_prism()
 
 # Pre‑compute triangles once (in model space)
 triangles = precompute_triangles(solid, faces)
@@ -28,8 +26,6 @@ window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
 clock = pygame.time.Clock()
 
-# Z‑buffer is already initialized in engine_config
-
 def gameloop():
     global engine_config
 
@@ -41,12 +37,8 @@ def gameloop():
     angle_y = 0.0
     angle_z = 0.0
 
-    # (Optional) frame counter – keep for occasional stats
-    frame_count = 0
-
     while loop:
-        frame_count += 1
-        # If you want automatic rotation, uncomment:
+        # (Optional) automatic rotation – comment out if you prefer mouse control
         # angle_y += theta * 0.5
         # angle_x += theta * 0.1
 
@@ -133,11 +125,6 @@ def gameloop():
             else:
                 projected_points.append(None)
 
-        # ---- (Optional: print vertices behind camera occasionally) ----
-        # if frame_count % 120 == 0:
-        #     none_count = sum(1 for pt in projected_points if pt is None)
-        #     print(f"Frame {frame_count}: {none_count} vertices behind camera")
-
         # ---- Visible Edges & Vertices (for wireframe overlay) ----
         visible_verts = set()
         visible_edges = set()
@@ -164,12 +151,13 @@ def gameloop():
 
         # ---- Draw Faces (Z‑buffered) ----
         if engine_config.DRAW_FACES:
-            # Reset Z‑buffer for this frame
-            for row in engine_config.Z_BUFFER:
-                for i in range(len(row)):
-                    row[i] = float('inf')
+            # Fast Z‑buffer reset using slice assignment
+            engine_config.Z_BUFFER[:] = array('f', [float('inf')]) * (engine_config.window_width * engine_config.window_height)
 
-            # Draw triangles in ANY order
+            # Create PixelArray for faster drawing
+            pixels = pygame.PixelArray(window)
+
+            # Draw triangles in ANY order (no sorting!)
             for tri in triangles:
                 # Visibility check
                 all_visible = True
@@ -197,13 +185,13 @@ def gameloop():
                 z1 = cam_space[tri[1]].z
                 z2 = cam_space[tri[2]].z
 
-                #Debug to see the Triangulation
-                pygame.draw.polygon(window, (0,0,0), [p0,p1,p2], 2)
+                # Rasterize triangle
+                rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, engine_config.FACE_COLOR, pixels)
 
-                # Rasterize the triangle (with Z‑buffer)
-                rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, engine_config.FACE_COLOR)
+            # Delete PixelArray to unlock the surface
+            del pixels
 
-        # ---- Draw Edges ----
+        # ---- Draw Edges (wireframe overlay) ----
         if engine_config.DRAW_EDGES:
             for edge in lines:
                 if engine_config.BACK_CULLING and edge not in visible_edges:

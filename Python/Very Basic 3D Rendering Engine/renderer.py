@@ -1,5 +1,5 @@
 import pygame
-from engine_config import Z_BUFFER, VERTEX_COLOR,EDGE_COLOR, FACE_COLOR, DRAW_FACES, window, window_height, window_width
+from engine_config import Z_HEIGHT, Z_WIDTH, Z_BUFFER, VERTEX_COLOR,EDGE_COLOR, FACE_COLOR, DRAW_FACES, window, window_height, window_width
 from math_utils import Point2D, triangulate_polygon
 
 #Draw rectangle with center at an x,y coord accounting for its size (so it's correctly placed there instead of placing the top right corner there) 
@@ -30,15 +30,18 @@ def build_wireframe_from_faces(faces:list):
             edges.add(edge)
     return list(edges)
 
-def rasterize_triangle(p0, p1, p2, z0, z1, z2, color):
+def rasterize_triangle(p0, p1, p2, z0, z1, z2, color, pixels):
     """
-    Barycentric rasterization with proper epsilon handling.
+    Barycentric rasterization with flat Z‑buffer and PixelArray.
     """
+    W = Z_WIDTH
+    H = Z_HEIGHT
+
     # Bounding box with sub‑pixel precision
     min_x = int(max(0, min(p0.x, p1.x, p2.x)))
-    max_x = int(min(window_width - 1, max(p0.x, p1.x, p2.x)))
+    max_x = int(min(W - 1, max(p0.x, p1.x, p2.x)))
     min_y = int(max(0, min(p0.y, p1.y, p2.y)))
-    max_y = int(min(window_height - 1, max(p0.y, p1.y, p2.y)))
+    max_y = int(min(H - 1, max(p0.y, p1.y, p2.y)))
 
     if min_x > max_x or min_y > max_y:
         return
@@ -50,12 +53,11 @@ def rasterize_triangle(p0, p1, p2, z0, z1, z2, color):
     if abs(denom) < 1e-10:  # Degenerate triangle
         return
 
-    # Pre‑compute inverse denominator
     inv_denom = 1.0 / denom
-
-    zb =  Z_BUFFER
+    zb = Z_BUFFER
 
     for y in range(min_y, max_y + 1):
+        row_offset = y * W
         for x in range(min_x, max_x + 1):
             # Compute barycentric coordinates
             v2x, v2y = x - p0.x, y - p0.y
@@ -63,27 +65,26 @@ def rasterize_triangle(p0, p1, p2, z0, z1, z2, color):
             v = (v0x * v2y - v2x * v0y) * inv_denom
             w = 1.0 - u - v
 
-            # Inside test with epsilon to catch edge pixels
+            # Inside test with epsilon
             if u >= -1e-6 and v >= -1e-6 and w >= -1e-6:
-                # Clamp to avoid negative values (due to floating point)
+                # Clamp to avoid negative values
                 if u < 0: u = 0
                 if v < 0: v = 0
                 if w < 0: w = 0
 
-                # Interpolate depth (perspective‑correct would be better, but this is fine)
                 depth = u * z0 + v * z1 + w * z2
+                idx = row_offset + x
+                if depth < zb[idx]:
+                    zb[idx] = depth
+                    pixels[x, y] = color   # fast pixel access
 
-                if depth < zb[y][x]:
-                    zb[y][x] = depth
-                    window.set_at((x, y), color)
-
-def rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, color):
+def rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, color, pixels):
     """
-    Tile‑based (8x8) barycentric rasterizer with Z‑buffer.
+    Tile‑based (8x8) barycentric rasterizer with flat Z‑buffer and PixelArray.
     """
     TILE = 32
-    W = window_width
-    H = window_height
+    W = Z_WIDTH
+    H = Z_HEIGHT
 
     # Bounding box (clamped to screen)
     min_x = int(max(0, min(p0.x, p1.x, p2.x)))
@@ -125,6 +126,7 @@ def rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, color):
                 y = tile_y + dy
                 if y > max_y:
                     break
+                row_offset = y * W
                 for dx in range(TILE):
                     x = tile_x + dx
                     if x > max_x:
@@ -143,6 +145,7 @@ def rasterize_triangle_tiled(p0, p1, p2, z0, z1, z2, color):
                         if w < 0: w = 0
 
                         depth = u * z0 + v * z1 + w * z2
-                        if depth < zb[y][x]:
-                            zb[y][x] = depth
-                            window.set_at((x, y), color)
+                        idx = row_offset + x
+                        if depth < zb[idx]:
+                            zb[idx] = depth
+                            pixels[x, y] = color   # faster pixel access

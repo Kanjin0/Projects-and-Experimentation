@@ -1,5 +1,6 @@
 from math import pi
 import pygame
+from array import array
 
 
 #Window
@@ -29,4 +30,6 @@ CAMERA_PHI = pi / 4         # 45° elevation
 FOCAL_LENGTH = 500.0        # pixels
 
 #Z-Buffering
-Z_BUFFER = [[float('inf')] * window_width for _ in range(window_height)]
+Z_BUFFER = array('f', [float('inf')]) * (window_width * window_height)
+Z_WIDTH = window_width
+Z_HEIGHT = window_height
