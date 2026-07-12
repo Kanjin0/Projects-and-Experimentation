@@ -7,20 +7,16 @@ from math_utils import *
 from renderer import *
 import model_loader
 
-# ---- Debug: check current directory and Models folder ----
-print("Current working directory:", os.getcwd())
-if os.path.exists("Models"):
-    print("Files in Models:", os.listdir("Models"))
-else:
-    print("Models folder not found – create it and place .obj files inside.")
-
 # ---- Load model ----
 try:
-    solid, faces, solid_normals = model_loader.load_obj("sphere.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals = model_loader.load_obj("cat.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces = model_loader.load_hexagonal_prism()
     solid_normals = compute_vertex_normals(solid, faces)
+
+'''solid, faces = model_loader.load_hexagonal_prism()
+solid_normals = compute_vertex_normals(solid, faces)'''
 
 # ---- Safety: ensure normals are valid ----
 if len(solid_normals) != len(solid):
@@ -51,20 +47,6 @@ window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
 clock = pygame.time.Clock()
 
-# ---- Helper to compute vertex color ----
-def get_vertex_color(normal):
-    if normal is None:
-        return engine_config.FACE_COLOR
-    return compute_vertex_color(
-        normal,
-        engine_config.FACE_COLOR,
-        engine_config.AMBIENT_STRENGTH,
-        engine_config.LIGHT_DIR,
-        engine_config.SPECULAR_STRENGTH,
-        engine_config.SHININESS
-    )
-
-
 def gameloop():
     global engine_config
 
@@ -72,20 +54,20 @@ def gameloop():
     deltaTime = 1 / engine_config.FPS
     theta = pi * deltaTime / 2
 
-    angle_x = pi      # Start with model upright (180° around X)
+    angle_x = pi      # upright
     angle_y = 0.0
     angle_z = 0.0
 
     while loop:
-        # Optional automatic rotation – uncomment to test
+        # (Optional) auto‑rotation
         # angle_y += theta * 0.5
 
-        # ---- Event Handling ----
+        # ---- Events ----
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 loop = False
             elif event.type == pygame.MOUSEMOTION:
-                if pygame.mouse.get_pressed()[0]:  # left button held
+                if pygame.mouse.get_pressed()[0]:
                     dx, dy = event.rel
                     angle_y -= dx * 0.005
                     angle_x += dy * 0.005
@@ -101,15 +83,17 @@ def gameloop():
                     engine_config.DRAW_EDGES = not engine_config.DRAW_EDGES
                 elif event.key == pygame.K_f:
                     engine_config.DRAW_FACES = not engine_config.DRAW_FACES
-                elif event.key == pygame.K_l:  # cycle shading
-                    engine_config.SHADING_MODE = (engine_config.SHADING_MODE + 1) % 3
-                    modes = ["None", "Gouraud", "Phong"]
-                    print(f"Shading mode: {modes[engine_config.SHADING_MODE]}")
+                elif event.key == pygame.K_l:  # cycle shading (None ↔ Phong)
+                    if engine_config.SHADING_MODE == engine_config.SHADING_NONE:
+                        engine_config.SHADING_MODE = engine_config.SHADING_PHONG
+                    else:
+                        engine_config.SHADING_MODE = engine_config.SHADING_NONE
+                    print(f"Shading mode: {'None' if engine_config.SHADING_MODE == engine_config.SHADING_NONE else 'Phong'}")
 
-        # ---- Clear Screen ----
+        # ---- Clear ----
         window.fill(engine_config.BACKGROUND_COLOR)
 
-        # ---- Transform Vertices & Normals ----
+        # ---- Transform vertices & normals ----
         transformed_3d = []
         transformed_normals = []
         for i, p in enumerate(solid):
@@ -118,14 +102,13 @@ def gameloop():
             rot3 = rotation(rot2, 2, angle_z)
             transformed_3d.append(rot3)
 
-            # Rotate normals by the same angles (directions only)
             n = solid_normals[i]
             nr1 = rotation(Point3D(n.x, n.y, n.z), 0, angle_x)
             nr2 = rotation(nr1, 1, angle_y)
             nr3 = rotation(nr2, 2, angle_z)
             transformed_normals.append(nr3)
 
-        # ---- Camera Setup & Projection ----
+        # ---- Camera & Projection ----
         eye_x = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * sin(engine_config.CAMERA_THETA)
         eye_y = engine_config.CAMERA_R * sin(engine_config.CAMERA_PHI)
         eye_z = engine_config.CAMERA_R * cos(engine_config.CAMERA_PHI) * cos(engine_config.CAMERA_THETA)
@@ -175,7 +158,7 @@ def gameloop():
             else:
                 projected_points.append(None)
 
-        # ---- Visible Edges & Vertices (for wireframe overlay) ----
+        # ---- Visible edges & vertices ----
         visible_verts = set()
         visible_edges = set()
         if engine_config.BACK_CULLING and (engine_config.DRAW_EDGES or engine_config.DRAW_VERTEXES):
@@ -199,17 +182,15 @@ def gameloop():
                         v2 = face_idxs[(i + 1) % len(face_idxs)]
                         visible_edges.add(tuple(sorted((v1, v2))))
 
-        # ---- Draw Faces (Z‑buffered) ----
+        # ---- Draw faces ----
         if engine_config.DRAW_FACES:
-            # Fast Z‑buffer reset
+            # Reset Z‑buffer
             engine_config.Z_BUFFER[:] = array('f', [float('inf')]) * (engine_config.window_width * engine_config.window_height)
 
-            # Create PixelArray for faster drawing
             pixels = pygame.PixelArray(window)
 
-            # Draw triangles in ANY order
             for tri in triangles:
-                # Visibility check
+                # Visibility
                 all_visible = True
                 for idx in tri:
                     if projected_points[idx] is None:
@@ -227,7 +208,6 @@ def gameloop():
                     if c >= -1e-5:
                         continue
 
-                # Get screen points and depths
                 p0 = projected_points[tri[0]]
                 p1 = projected_points[tri[1]]
                 p2 = projected_points[tri[2]]
@@ -235,35 +215,21 @@ def gameloop():
                 z1 = cam_space[tri[1]].z
                 z2 = cam_space[tri[2]].z
 
-                # ---- Shading Mode Dispatch ----
-                mode = engine_config.SHADING_MODE
-                if mode == engine_config.SHADING_NONE:
-                    rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
-                                  base_color=engine_config.FACE_COLOR)
-                elif mode == engine_config.SHADING_GOURAUD:
+                # Prepare normals only if Phong mode is active
+                if engine_config.SHADING_MODE == engine_config.SHADING_PHONG:
                     n0 = transformed_normals[tri[0]]
                     n1 = transformed_normals[tri[1]]
                     n2 = transformed_normals[tri[2]]
-                    c0 = get_vertex_color(n0)
-                    c1 = get_vertex_color(n1)
-                    c2 = get_vertex_color(n2)
-                    if tri == triangles[0]:  # print only first triangle
-                        print(f"Gouraud colors: {c0}, {c1}, {c2}")
-                    rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
-                                  color0=c0, color1=c1, color2=c2,
-                                  base_color=engine_config.FACE_COLOR)
-                else:  # PHONG
-                    n0 = transformed_normals[tri[0]]
-                    n1 = transformed_normals[tri[1]]
-                    n2 = transformed_normals[tri[2]]
-                    rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
-                                  n0=n0, n1=n1, n2=n2,
-                                  base_color=engine_config.FACE_COLOR)
+                else:
+                    n0 = n1 = n2 = None
 
-            # Release PixelArray
+                rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
+                                                  n0=n0, n1=n1, n2=n2,
+                                                  base_color=engine_config.FACE_COLOR)
+
             del pixels
 
-        # ---- Draw Edges (wireframe overlay) ----
+        # ---- Draw edges & vertices (unchanged) ----
         if engine_config.DRAW_EDGES:
             for edge in lines:
                 if engine_config.BACK_CULLING and edge not in visible_edges:
@@ -273,7 +239,6 @@ def gameloop():
                 if p1 is not None and p2 is not None:
                     line(p1, p2)
 
-        # ---- Draw Vertices ----
         if engine_config.DRAW_VERTEXES:
             if engine_config.BACK_CULLING:
                 for i, pt in enumerate(projected_points):
