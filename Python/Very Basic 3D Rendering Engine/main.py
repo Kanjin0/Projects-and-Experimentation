@@ -9,14 +9,10 @@ import model_loader
 
 # ---- Load model ----
 try:
-    solid, faces, solid_normals = model_loader.load_obj("sphere.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals, face_materials = model_loader.load_obj("low_poly_tree.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
-    solid, faces = model_loader.load_hexagonal_prism()
-    solid_normals = compute_vertex_normals(solid, faces)
-
-'''solid, faces = model_loader.load_hexagonal_prism()
-solid_normals = compute_vertex_normals(solid, faces)'''
+    solid, faces, solid_normals, face_materials = model_loader.load_hexagonal_prism()
 
 # ---- Safety: ensure normals are valid ----
 if len(solid_normals) != len(solid):
@@ -34,8 +30,13 @@ if any(n is None for n in solid_normals):
 print(f"Loaded {len(solid)} vertices, {len(faces)} faces, {len(solid_normals)} normals.")
 print(f"First normal: {solid_normals[0] if solid_normals else 'None'}")
 
-# ---- Pre‑compute triangles ----
-triangles = precompute_triangles(solid, faces)
+# ---- Pre‑compute triangles with materials ----
+triangles = []
+for face_idx, face in enumerate(faces):
+    tri_indices = triangulate_face(solid, face)   # returns list of (i,j,k)
+    mat = face_materials[face_idx]
+    for tri in tri_indices:
+        triangles.append((tri, mat))
 print(f"Pre‑computed {len(triangles)} triangles.")
 
 # Build wireframe edges from the ORIGINAL faces (not triangles)
@@ -189,10 +190,10 @@ def gameloop():
 
             pixels = pygame.PixelArray(window)
 
-            for tri in triangles:
+            for tri_indices, mat in triangles:   # <-- UNPACK HERE
                 # Visibility
                 all_visible = True
-                for idx in tri:
+                for idx in tri_indices:
                     if projected_points[idx] is None:
                         all_visible = False
                         break
@@ -201,31 +202,33 @@ def gameloop():
 
                 # Back‑face culling
                 if engine_config.BACK_CULLING:
-                    v0 = cam_space[tri[0]]
-                    v1 = cam_space[tri[1]]
-                    v2 = cam_space[tri[2]]
+                    v0 = cam_space[tri_indices[0]]
+                    v1 = cam_space[tri_indices[1]]
+                    v2 = cam_space[tri_indices[2]]
                     a, b, c = calculate_face_normal(v0, v1, v2)
                     if c >= -1e-5:
                         continue
 
-                p0 = projected_points[tri[0]]
-                p1 = projected_points[tri[1]]
-                p2 = projected_points[tri[2]]
-                z0 = cam_space[tri[0]].z
-                z1 = cam_space[tri[1]].z
-                z2 = cam_space[tri[2]].z
+                p0 = projected_points[tri_indices[0]]
+                p1 = projected_points[tri_indices[1]]
+                p2 = projected_points[tri_indices[2]]
+                z0 = cam_space[tri_indices[0]].z
+                z1 = cam_space[tri_indices[1]].z
+                z2 = cam_space[tri_indices[2]].z
 
                 # Prepare normals only if Phong mode is active
                 if engine_config.SHADING_MODE == engine_config.SHADING_PHONG:
-                    n0 = transformed_normals[tri[0]]
-                    n1 = transformed_normals[tri[1]]
-                    n2 = transformed_normals[tri[2]]
+                    n0 = transformed_normals[tri_indices[0]]
+                    n1 = transformed_normals[tri_indices[1]]
+                    n2 = transformed_normals[tri_indices[2]]
                 else:
                     n0 = n1 = n2 = None
 
-                rasterize_triangle_tiled_lighting(p0, p1, p2, z0, z1, z2, pixels,
-                                                  n0=n0, n1=n1, n2=n2,
-                                                  base_color=engine_config.FACE_COLOR)
+                rasterize_triangle_tiled_lighting_material(
+                    p0, p1, p2, z0, z1, z2, pixels,
+                    n0=n0, n1=n1, n2=n2,
+                    material=mat
+                )
 
             del pixels
 
