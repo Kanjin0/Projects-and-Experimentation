@@ -1,10 +1,50 @@
 from math_utils import Point3D, compute_vertex_normals
 from math import cos, sin, pi
 import os
+from materials import Material, DEFAULT_MAT
 
 # Determine the directory where this file (model_loader.py) is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(SCRIPT_DIR, "Models")
+
+#Parse a .mtl file and obtain a returned dict of materials
+def load_mtl(filepath: str):
+    materials = {}
+    current_mat = None
+
+    with open(filepath , "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) == 0:
+                continue
+
+            if parts[0] == "newmtl":
+                name = parts[1]
+                current_mat = Material(name = name)
+                materials[name] = current_mat
+            elif parts[0] == "Kd":
+                if current_mat:
+                    current_mat.diffuse = tuple(map(float , parts[1:4]))
+            elif parts[0] == "Ka":
+                if current_mat:
+                    current_mat.ambient = tuple(map(float , parts[1:4]))
+            elif parts[0] == "Ks":
+                if current_mat:
+                    current_mat.specular = tuple(map(float , parts[1:4]))
+            elif parts[0] == "Ns":
+                 if current_mat:
+                    current_mat.shininess = float(parts[1])
+            elif parts[0] == 'd' or parts[0] == "Tr":
+                if current_mat:
+                    if parts[0] == 'd':
+                        current_mat.transparency = float(parts[1])
+                    else:
+                        current_mat.transparency = 1.0 - float(parts[1])
+
+    return materials
 
 # Completely define a solid using information from a .obj file
 def load_obj(filename: str, scale_to_fit: float = 1.5):
@@ -12,6 +52,9 @@ def load_obj(filename: str, scale_to_fit: float = 1.5):
     normals = []          # raw model-space normals
     faces = []            # list of (vertex_indices, normal_indices)
     vertex_normals = []   # will map vertex index -> normal index (if provided)
+    face_materials = []  # material name for each face (parallel to faces)
+    current_material = None
+    mtl_lib = None
 
     filepath = os.path.join(MODELS_DIR, filename)
     if not os.path.exists(filepath):
@@ -29,6 +72,10 @@ def load_obj(filename: str, scale_to_fit: float = 1.5):
             elif parts[0] == 'vn':
                 x, y, z = map(float, parts[1:4])
                 normals.append(Point3D(x, y, z))
+            elif parts[0] == 'mtllib':
+                mtl_lib = parts[1]
+            elif parts[0] == 'usemtl':
+                current_material = parts[1]
             elif parts[0] == 'f':
                 # Parse face vertices & normals
                 face_verts = []
@@ -48,6 +95,16 @@ def load_obj(filename: str, scale_to_fit: float = 1.5):
                     else:
                         face_normals.append(None)  # no normal for this vertex
                 faces.append((face_verts, face_normals))
+                face_materials.append(current_material)
+
+    # ---- Load materials ----
+    materials = {}
+
+    if mtl_lib:
+        mtl_path = os.path.join(MODELS_DIR, mtl_lib)
+        if os.path.exists(mtl_path):
+            materials = load_mtl(mtl_path)
+
 
     if not vertices or not faces:
         return vertices, [], faces
@@ -94,10 +151,18 @@ def load_obj(filename: str, scale_to_fit: float = 1.5):
         # Compute vertex normals from face normals (weighted average)
         vertex_normals = compute_vertex_normals(vertices, [v_list for v_list, _ in faces])
 
+    # ---- Build material list per face ----
+    face_material_objects = []
+    for mat_name in face_materials:
+        if mat_name and mat_name in materials:
+            face_material_objects.append(materials[mat_name])
+        else:
+            face_material_objects.append(DEFAULT_MAT)
+
     # Convert faces to just vertex indices (for compatibility with existing code)
     faces_clean = [v_list for v_list, _ in faces]
 
-    return vertices, faces_clean, vertex_normals
+    return vertices, faces_clean, vertex_normals, face_material_objects
 
 def load_hexagonal_prism(base_radius:float = 0.7, half_height:float = 0.7) -> tuple[list[Point3D], list[list[int]]]:
     #NOTE: THIS WAS OBTAINED THROUGH A PROMPT ASKING FOR MORE MODELS TO TEST THE CODE WITH

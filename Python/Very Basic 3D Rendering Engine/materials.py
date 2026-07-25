@@ -1,5 +1,5 @@
 class Material:
-    def __init__(self, name = "default", diffuse = (1.0,1.0,1.0), ambient = None, specular = (1.0,1.0,1.0), shininess = 32, transparency = 1.0):
+    def __init__(self, name = "default", diffuse = (1.0,1.0,1.0), ambient = None, specular = (1.0,1.0,1.0), shininess = 32., transparency = 1.0):
 
         self.name = name
         # Colors are stored as (r, g, b) in range 0.0 - 1.0
