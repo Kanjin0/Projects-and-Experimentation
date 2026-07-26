@@ -9,7 +9,7 @@ import model_loader
 
 # ---- Load model ----
 try:
-    solid, faces, solid_normals, face_materials = model_loader.load_obj("low_poly_tree.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals, face_materials = model_loader.load_obj("low_poly_plant.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces, solid_normals, face_materials = model_loader.load_hexagonal_prism()

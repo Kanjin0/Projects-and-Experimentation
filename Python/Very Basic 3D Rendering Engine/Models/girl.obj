@@ -1,6 +1,6 @@
 # Blender v2.90.1 OBJ File: 'G.blend'
 # www.blender.org
-mtllib girl OBJ.mtl
+mtllib girl_OBJ.mtl
 o Head_Hair001.baked.005
 v 0.029492 1.341150 0.032332
 v 0.040121 1.349679 0.026849
