@@ -10,20 +10,26 @@ from math_utils import *
 from renderer import *
 import model_loader
 
+# ---- Get script directory for reliable DLL loading ----
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# ---- Build library path ----
+if sys.platform == 'win32':
+    dll_path = os.path.join(script_dir, 'rasterizer.dll')
+else:
+    dll_path = os.path.join(script_dir, 'librasterizer.so')
+
 # ---- Load the C rasterizer library (if available) ----
 try:
-    if sys.platform == 'win32':
-        lib = ctypes.CDLL('./rasterizer.dll')
-    else:
-        lib = ctypes.CDLL('./librasterizer.so')
-    print("C rasterizer library loaded successfully.")
+    lib = ctypes.CDLL(dll_path)
+    print(f"C rasterizer library loaded successfully from {dll_path}")
 except OSError:
     lib = None
-    print("C rasterizer library not found – using Python rasterizer.")
+    print(f"C rasterizer library not found at {dll_path} – using Python rasterizer.")
 
 # ---- Define the C function signature for ctypes ----
 if lib is not None:
-    lib.rasterize_triangles.argtypes = [
+    lib.rasterize_triangle_tiled_lighting_material.argtypes = [
         ctypes.c_int,                     # num_triangles
         ctypes.POINTER(ctypes.c_float),   # vertices
         ctypes.POINTER(ctypes.c_float),   # normals
@@ -40,11 +46,11 @@ if lib is not None:
         ctypes.POINTER(ctypes.c_float),   # light_dir (3 floats)
         ctypes.c_float                    # spec_strength
     ]
-    lib.rasterize_triangles.restype = None
+    lib.rasterize_triangle_tiled_lighting_material.restype = None
 
 # ---- Load model ----
 try:
-    solid, faces, solid_normals, face_materials = model_loader.load_obj("sphere.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals, face_materials = model_loader.load_obj("vespa.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces, solid_normals, face_materials = model_loader.load_hexagonal_prism()
@@ -87,7 +93,12 @@ clock = pygame.time.Clock()
 if lib is not None:
     fb_width = engine_config.window_width
     fb_height = engine_config.window_height
-    framebuffer = bytearray(fb_width * fb_height * 3)   # RGB, 8 bits per channel
+    framebuffer = bytearray(fb_width * fb_height * 3)
+
+    # Pre‑fill a background buffer with the background color
+    bg = engine_config.BACKGROUND_COLOR
+    bg_bytes = bytes([bg[0], bg[1], bg[2]]) * (fb_width * fb_height)
+    background_buffer = bytearray(bg_bytes)
 
 def gameloop():
     global engine_config
@@ -133,6 +144,7 @@ def gameloop():
                     print(f"Shading mode: {'None' if engine_config.SHADING_MODE == engine_config.SHADING_NONE else 'Phong'}")
 
         # ---- Clear screen ----
+        # We'll still fill the window's background for the edges/vertices (they are drawn later)
         window.fill(engine_config.BACKGROUND_COLOR)
 
         # ---- Transform vertices & normals ----
@@ -294,6 +306,9 @@ def gameloop():
 
                     shininess_flat[i] = mat.shininess
 
+                # ---- Clear framebuffer to background ----
+                framebuffer[:] = background_buffer
+
                 # ---- Convert numpy arrays to ctypes pointers ----
                 vertices_ptr = vertices_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
                 normals_ptr   = normals_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
@@ -312,7 +327,7 @@ def gameloop():
                 fb_ptr = (ctypes.c_ubyte * len(framebuffer)).from_buffer(framebuffer)
 
                 # Call the C function
-                lib.rasterize_triangles(
+                lib.rasterize_triangle_tiled_lighting_material(
                     ctypes.c_int(num_tris),
                     vertices_ptr,
                     normals_ptr,
