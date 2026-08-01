@@ -61,3 +61,44 @@ For high‑poly models (e.g., 35k triangles), the C rasterizer delivers **about 
 Install them with:
 ```bash
 pip install pygame numpy
+```
+
+### C (optional)
+To compile the C rasterizer, you need a C compiler (e.g., MinGW‑w64 on Windows, GCC on Linux).
+
+On Windows with MinGW: gcc must be in your PATH.
+
+On Linux: build-essential package.
+
+#### Building the C Rasterizer
+If you want to use the optimised C rasterizer (strongly recommended for complex models), compile rasterizer.c into a shared library.
+
+Place the compiled .dll (or .so) in the same folder as main.py.
+The Python script will automatically load it; if not found, it falls back to the pure‑Python rasterizer.
+
+##### Windows (MinGW)
+```bash
+gcc -shared -O3 -march=native -o rasterizer.dll rasterizer.c -lm
+``` 
+##### Linux
+```bash
+gcc -shared -O3 -march=native -fPIC -o librasterizer.so rasterizer.c -lm
+```
+
+### 🎮 Controls
+
+- Mouse drag (left button)	Rotate the model
+- Mouse wheel	Zoom in/out
+- Space	Toggle back‑face culling
+- V	Toggle vertex rendering
+- E	Toggle edge rendering
+- F	Toggle face rendering
+- L	Cycle shading: None ↔ Phong
+
+### 📦 Running the Engine
+Make sure your .obj and .mtl files are placed inside the Models/ folder.
+
+Navigate to the project folder and run:
+```bash
+python main.py
+```
