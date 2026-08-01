@@ -7,19 +7,22 @@ It is organized by **programming language** to keep things tidy as I explore var
 ---
 
 ## 📁 Current Folder Structure
+
+```
 /
 ├── README.md
-├── Python/ # All Python-based projects
-│ └── Very Basic 3D Rendering Engine/
-│ │ ├── main.py
-│ │ ├── renderer.py
-│ │ ├── math_utils.py
-│ │ ├── engine_config.py
-│ │ ├── model_loader.py
-│ │ ├── materials.py
-│ │ ├── Models/ # .obj and .mtl files
-│ │ ├── rasterizer.c # C optimised rasterizer
-│ │ └── rasterizer.dll # (compiled)
+├── Python/                               # All Python-based projects
+│   └── Very Basic 3D Rendering Engine/
+│       ├── main.py
+│       ├── renderer.py
+│       ├── math_utils.py
+│       ├── engine_config.py
+│       ├── model_loader.py
+│       ├── materials.py
+│       ├── Models/                       # .obj and .mtl files
+│       ├── rasterizer.c                  # C optimised rasterizer
+│       └── rasterizer.dll                # (compiled)
+```
 
 
 > Each language folder contains only projects written predominantly in that language. A project may include components in other languages (e.g., a C extension in a Python project) – the folder is chosen by the primary language.
