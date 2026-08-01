@@ -3,6 +3,8 @@
 #include <stdlib.h>
 
 // compile with: gcc -shared -O3 -march=native -o rasterizer.dll rasterizer.c -lm
+// -march=native scans the CPU to optmize further so the .dll that's in the repo isn't for all machines. 
+// You may need to remove it and compile it again or compile it with it so it's "shaped" to your current machine
 
 void rasterize_triangle_tiled_lighting_material(
     int num_triagles, 
