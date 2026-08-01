@@ -1,4 +1,7 @@
 import os
+import sys
+import ctypes
+import numpy as np
 import pygame
 from math import cos, sin, sqrt
 from array import array
@@ -7,9 +10,41 @@ from math_utils import *
 from renderer import *
 import model_loader
 
+# ---- Load the C rasterizer library (if available) ----
+try:
+    if sys.platform == 'win32':
+        lib = ctypes.CDLL('./rasterizer.dll')
+    else:
+        lib = ctypes.CDLL('./librasterizer.so')
+    print("C rasterizer library loaded successfully.")
+except OSError:
+    lib = None
+    print("C rasterizer library not found – using Python rasterizer.")
+
+# ---- Define the C function signature for ctypes ----
+if lib is not None:
+    lib.rasterize_triangles.argtypes = [
+        ctypes.c_int,                     # num_triangles
+        ctypes.POINTER(ctypes.c_float),   # vertices
+        ctypes.POINTER(ctypes.c_float),   # normals
+        ctypes.POINTER(ctypes.c_int),     # indices
+        ctypes.POINTER(ctypes.c_float),   # diffuse
+        ctypes.POINTER(ctypes.c_float),   # specular
+        ctypes.POINTER(ctypes.c_float),   # shininess
+        ctypes.c_int,                     # width
+        ctypes.c_int,                     # height
+        ctypes.POINTER(ctypes.c_float),   # z_buffer
+        ctypes.POINTER(ctypes.c_ubyte),   # framebuffer
+        ctypes.c_int,                     # shading_mode
+        ctypes.c_float,                   # ambient_strength
+        ctypes.POINTER(ctypes.c_float),   # light_dir (3 floats)
+        ctypes.c_float                    # spec_strength
+    ]
+    lib.rasterize_triangles.restype = None
+
 # ---- Load model ----
 try:
-    solid, faces, solid_normals, face_materials = model_loader.load_obj("low_poly_plant.obj", scale_to_fit=1.5)
+    solid, faces, solid_normals, face_materials = model_loader.load_obj("sphere.obj", scale_to_fit=1.5)
 except FileNotFoundError:
     print("Model not found – loading default hexagonal prism.")
     solid, faces, solid_normals, face_materials = model_loader.load_hexagonal_prism()
@@ -33,7 +68,7 @@ print(f"First normal: {solid_normals[0] if solid_normals else 'None'}")
 # ---- Pre‑compute triangles with materials ----
 triangles = []
 for face_idx, face in enumerate(faces):
-    tri_indices = triangulate_face(solid, face)   # returns list of (i,j,k)
+    tri_indices = triangulate_face(solid, face)
     mat = face_materials[face_idx]
     for tri in tri_indices:
         triangles.append((tri, mat))
@@ -47,6 +82,12 @@ pygame.init()
 window = engine_config.window
 pygame.display.set_caption(engine_config.window_name)
 clock = pygame.time.Clock()
+
+# ---- Pre‑allocate framebuffer for C rasterizer ----
+if lib is not None:
+    fb_width = engine_config.window_width
+    fb_height = engine_config.window_height
+    framebuffer = bytearray(fb_width * fb_height * 3)   # RGB, 8 bits per channel
 
 def gameloop():
     global engine_config
@@ -84,14 +125,14 @@ def gameloop():
                     engine_config.DRAW_EDGES = not engine_config.DRAW_EDGES
                 elif event.key == pygame.K_f:
                     engine_config.DRAW_FACES = not engine_config.DRAW_FACES
-                elif event.key == pygame.K_l:  # cycle shading (None ↔ Phong)
+                elif event.key == pygame.K_l:
                     if engine_config.SHADING_MODE == engine_config.SHADING_NONE:
                         engine_config.SHADING_MODE = engine_config.SHADING_PHONG
                     else:
                         engine_config.SHADING_MODE = engine_config.SHADING_NONE
                     print(f"Shading mode: {'None' if engine_config.SHADING_MODE == engine_config.SHADING_NONE else 'Phong'}")
 
-        # ---- Clear ----
+        # ---- Clear screen ----
         window.fill(engine_config.BACKGROUND_COLOR)
 
         # ---- Transform vertices & normals ----
@@ -159,7 +200,7 @@ def gameloop():
             else:
                 projected_points.append(None)
 
-        # ---- Visible edges & vertices ----
+        # ---- Visible edges & vertices (for wireframe overlay) ----
         visible_verts = set()
         visible_edges = set()
         if engine_config.BACK_CULLING and (engine_config.DRAW_EDGES or engine_config.DRAW_VERTEXES):
@@ -188,9 +229,9 @@ def gameloop():
             # Reset Z‑buffer
             engine_config.Z_BUFFER[:] = array('f', [float('inf')]) * (engine_config.window_width * engine_config.window_height)
 
-            pixels = pygame.PixelArray(window)
-
-            for tri_indices, mat in triangles:   # <-- UNPACK HERE
+            # Build list of visible triangles (after visibility & culling)
+            visible_triangles = []
+            for tri_indices, mat in triangles:
                 # Visibility
                 all_visible = True
                 for idx in tri_indices:
@@ -209,28 +250,114 @@ def gameloop():
                     if c >= -1e-5:
                         continue
 
-                p0 = projected_points[tri_indices[0]]
-                p1 = projected_points[tri_indices[1]]
-                p2 = projected_points[tri_indices[2]]
-                z0 = cam_space[tri_indices[0]].z
-                z1 = cam_space[tri_indices[1]].z
-                z2 = cam_space[tri_indices[2]].z
+                visible_triangles.append((tri_indices, mat))
 
-                # Prepare normals only if Phong mode is active
-                if engine_config.SHADING_MODE == engine_config.SHADING_PHONG:
-                    n0 = transformed_normals[tri_indices[0]]
-                    n1 = transformed_normals[tri_indices[1]]
-                    n2 = transformed_normals[tri_indices[2]]
-                else:
-                    n0 = n1 = n2 = None
+            # ----- Use C rasterizer if available -----
+            if lib is not None and len(visible_triangles) > 0:
+                num_tris = len(visible_triangles)
 
-                rasterize_triangle_tiled_lighting_material(
-                    p0, p1, p2, z0, z1, z2, pixels,
-                    n0=n0, n1=n1, n2=n2,
-                    material=mat
+                # Allocate flat numpy arrays
+                vertices_flat = np.empty(num_tris * 9, dtype=np.float32)
+                normals_flat   = np.empty(num_tris * 9, dtype=np.float32)
+                indices_flat   = np.empty(num_tris * 3, dtype=np.int32)
+                diffuse_flat   = np.empty(num_tris * 3, dtype=np.float32)
+                specular_flat  = np.empty(num_tris * 3, dtype=np.float32)
+                shininess_flat = np.empty(num_tris, dtype=np.float32)
+
+                # Fill arrays
+                for i, (tri_indices, mat) in enumerate(visible_triangles):
+                    # Vertices and normals
+                    for j, idx in enumerate(tri_indices):
+                        base_v = i * 9 + j * 3
+                        p = projected_points[idx]
+                        vertices_flat[base_v]     = p.x
+                        vertices_flat[base_v + 1] = p.y
+                        vertices_flat[base_v + 2] = cam_space[idx].z   # depth
+
+                        n = transformed_normals[idx]
+                        base_n = i * 9 + j * 3
+                        normals_flat[base_n]     = n.x
+                        normals_flat[base_n + 1] = n.y
+                        normals_flat[base_n + 2] = n.z
+
+                        indices_flat[i * 3 + j] = j   # local index within triangle (0,1,2)
+
+                    # Material properties
+                    base_d = i * 3
+                    diffuse_flat[base_d]     = mat.diffuse[0]
+                    diffuse_flat[base_d + 1] = mat.diffuse[1]
+                    diffuse_flat[base_d + 2] = mat.diffuse[2]
+
+                    specular_flat[base_d]     = mat.specular[0]
+                    specular_flat[base_d + 1] = mat.specular[1]
+                    specular_flat[base_d + 2] = mat.specular[2]
+
+                    shininess_flat[i] = mat.shininess
+
+                # ---- Convert numpy arrays to ctypes pointers ----
+                vertices_ptr = vertices_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+                normals_ptr   = normals_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+                indices_ptr   = indices_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+                diffuse_ptr   = diffuse_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+                specular_ptr  = specular_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+                shininess_ptr = shininess_flat.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+
+                # Prepare light direction as ctypes array
+                light_dir = (ctypes.c_float * 3)(*engine_config.LIGHT_DIR)
+
+                # ---- Convert Z‑buffer (array('f')) to ctypes pointer ----
+                z_buffer_ptr = (ctypes.c_float * len(engine_config.Z_BUFFER)).from_buffer(engine_config.Z_BUFFER)
+
+                # Convert framebuffer to ctypes pointer
+                fb_ptr = (ctypes.c_ubyte * len(framebuffer)).from_buffer(framebuffer)
+
+                # Call the C function
+                lib.rasterize_triangles(
+                    ctypes.c_int(num_tris),
+                    vertices_ptr,
+                    normals_ptr,
+                    indices_ptr,
+                    diffuse_ptr,
+                    specular_ptr,
+                    shininess_ptr,
+                    engine_config.window_width,
+                    engine_config.window_height,
+                    z_buffer_ptr,
+                    fb_ptr,
+                    engine_config.SHADING_MODE,
+                    engine_config.AMBIENT_STRENGTH,
+                    light_dir,
+                    engine_config.SPECULAR_STRENGTH
                 )
 
-            del pixels
+                # Convert framebuffer to Pygame surface and blit to window
+                surface = pygame.image.frombuffer(framebuffer, (engine_config.window_width, engine_config.window_height), "RGB")
+                window.blit(surface, (0, 0))
+
+            else:
+                # ---- Fallback: Python rasterizer ----
+                pixels = pygame.PixelArray(window)
+                for tri_indices, mat in visible_triangles:
+                    p0 = projected_points[tri_indices[0]]
+                    p1 = projected_points[tri_indices[1]]
+                    p2 = projected_points[tri_indices[2]]
+                    z0 = cam_space[tri_indices[0]].z
+                    z1 = cam_space[tri_indices[1]].z
+                    z2 = cam_space[tri_indices[2]].z
+
+                    if engine_config.SHADING_MODE == engine_config.SHADING_PHONG:
+                        n0 = transformed_normals[tri_indices[0]]
+                        n1 = transformed_normals[tri_indices[1]]
+                        n2 = transformed_normals[tri_indices[2]]
+                    else:
+                        n0 = n1 = n2 = None
+
+                    rasterize_triangle_tiled_lighting_material(
+                        p0, p1, p2, z0, z1, z2, pixels,
+                        n0=n0, n1=n1, n2=n2,
+                        material=mat
+                    )
+                del pixels
 
         # ---- Draw edges & vertices (unchanged) ----
         if engine_config.DRAW_EDGES:
