@@ -39,8 +39,8 @@ class Boid(Entity):
         self.velocity = Vec3(0.0,0.0,0.0)#Vec3(random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1))
 
         # Experimenting using slightly random values in hopes it'll mimic individuality even among same species individuals
-        self.vision_radius = random.uniform(1.8,2.2) #defining how far in a circle/sphere each boid can see
-        self.separation_radius = random.uniform(0.9,1.1) #defining a circle/sphere limit from where the boid starts to avoid others so no bumping occurs
+        self.vision_radius = random.uniform(1.5,2.5) #defining how far in a circle/sphere each boid can see
+        self.separation_radius = random.uniform(0.75,1.75) #defining a circle/sphere limit from where the boid starts to avoid others so no bumping occurs
         self.max_force = 0.5
         self.max_speed = 2.0
 
@@ -81,8 +81,19 @@ class Boid(Entity):
             if other is self: 
                 continue
             if distance(self, other) < self.vision_radius:
-                avg_velocity += Vec3(0,0,0)
-        pass
+                avg_velocity += other.velocity
+                count += 1
+
+        if count > 0:
+            avg_velocity /= count
+            avg_velocity.normalize()
+            avg_velocity *= self.max_speed
+            steer = avg_velocity - self.velocity
+            if steer.length() > self.max_force:
+                steer.normalize()
+                steer *= self.max_force
+            return steer
+        return Vec3(0,0,0)
 
     def calc_cohesion(self):
         pass
@@ -91,8 +102,9 @@ class Boid(Entity):
     def update(self):
 
         sep = self.calc_separation() * SEPARATION_WEIGHT
+        ali = self.calc_alignment() * ALIGNMENT_WEIGHT
 
-        self.velocity += sep # type: ignore # Add "- self.velocity*0.1" if you want them to lose speed after separating and trully check of the movement was just due to it
+        self.velocity += sep + ali # type: ignore # Add "- self.velocity*0.1" if you want them to lose speed after separating and trully check of the movement was just due to it
 
         if self.velocity.length() > self.max_speed: # type: ignore
             self.velocity.normalize() # type: ignore
@@ -110,7 +122,7 @@ class Boid(Entity):
 camera = EditorCamera()
 
 
-boids = [Boid() for _ in range(3)]
+boids = [Boid() for _ in range(80)]
 
 Entity(model='plane', scale=10, color=color.gray, texture='white_cube',)
 
