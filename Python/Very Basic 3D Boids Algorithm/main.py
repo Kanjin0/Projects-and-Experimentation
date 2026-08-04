@@ -1,68 +1,107 @@
-from ursina import * # type: ignore
+from ursina import *  # type: ignore
 import random
 
-app = Ursina()
-
 SEPARATION_WEIGHT = 0.3
-ALIGNMENT_WEIGHT = 0.2
-COHESION_WEIGHT = 0.1
+ALIGNMENT_WEIGHT = 0.3
+COHESION_WEIGHT = 0.2
 SHOW_VISUALS = False
 BOUNDS = 10
+CELL_SIZE = 2
+
+app = Ursina()
 
 def input(key):
     global SHOW_VISUALS
     if key == 'v':
         SHOW_VISUALS = not SHOW_VISUALS
         for boid in Boid.all_boids:
-            boid.sep_visual.enabled = SHOW_VISUALS   # stops rendering completely
+            boid.sep_visual.enabled = SHOW_VISUALS
+
+class SpatialGrid:
+    def __init__(self, cell_size):
+        self.cell_size = cell_size
+        self.cells = {}          # key: (cx, cy, cz) -> list of boids
+
+    def clear(self):
+        self.cells.clear()
+
+    def get_cell_key(self, position):
+        return (int(position.x // self.cell_size),
+                int(position.y // self.cell_size),
+                int(position.z // self.cell_size))
+
+    def insert(self, boid):
+        key = self.get_cell_key(boid.position)
+        self.cells.setdefault(key, []).append(boid)   # fixed typo
+
+    def get_nearby(self, boid, radius):
+        center = self.get_cell_key(boid.position)
+        candidates = []
+        search_range = int(radius // self.cell_size) + 1
+        for dx in range(-search_range, search_range + 1):
+            for dy in range(-search_range, search_range + 1):
+                for dz in range(-search_range, search_range + 1):
+                    key = (center[0] + dx, center[1] + dy, center[2] + dz)
+                    if key in self.cells:
+                        candidates.extend(self.cells[key])
+        return candidates
+
+grid = SpatialGrid(CELL_SIZE)
 
 class SeparationVisualizer(Entity):
     def __init__(self, boid):
         super().__init__(
             parent=boid,
             model='sphere',
-            scale=boid.separation_radius * 2/0.2,
-            color=color.rgb(70, 70, 70),   # red, 60 alpha
+            scale=boid.separation_radius * 2 / 0.2,   # your custom scaling
+            color=color.rgb(70, 70, 70),
             unlit=True,
-            alpha=0.2,                          # enables alpha blending
+            alpha=0.2,
             enabled=SHOW_VISUALS
         )
-    
+    def update(self):
+        self.color = self.parent.color
+        self.alpha = 0.2
 
 class Boid(Entity):
     all_boids = []
+
     def __init__(self):
         super().__init__(
-            model='cube', 
+            model='cube',
             scale=0.2,
             color=color.black,
-            position=(random.uniform(-BOUNDS,BOUNDS),random.uniform(-BOUNDS,BOUNDS),random.uniform(-BOUNDS,BOUNDS))
+            position=(random.uniform(-BOUNDS/2, BOUNDS/2),
+                      random.uniform(-BOUNDS/2, BOUNDS/2),
+                      random.uniform(-BOUNDS/2, BOUNDS/2))
         )
-        self.velocity = Vec3(random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1)) #Vec3(0.0,0.0,0.0)
+        self.velocity = Vec3(random.uniform(-1, 1),
+                             random.uniform(-1, 1),
+                             random.uniform(-1, 1))
 
-        # Experimenting using slightly random values in hopes it'll mimic individuality even among same species individuals
-        self.vision_radius = random.uniform(1.5,2.5) #defining how far in a circle/sphere each boid can see
-        self.separation_radius = random.uniform(0.75,1.75) #defining a circle/sphere limit from where the boid starts to avoid others so no bumping occurs
+        # individuality parameters
+        self.vision_radius = random.uniform(1.5, 2.5)
+        self.separation_radius = random.uniform(0.55, 1.05)
         self.max_force = 0.5
         self.max_speed = 2.0
 
         self.sep_visual = SeparationVisualizer(self)
-        
+
         Boid.all_boids.append(self)
 
-    def calc_separation(self):
-        steer = Vec3(0,0,0)
+    def calc_separation(self, nearby):
+        steer = Vec3(0, 0, 0)
         count = 0
-
-        for other in Boid.all_boids:
+        sep_radius_sq = self.separation_radius ** 2
+        for other in nearby:
             if other is self:
                 continue
-            d = distance(self,other)
-            if 0 < d < self.separation_radius:
-                diff = self.position - other.position
-                diff.normalize()
-                diff /= d
-                steer += diff
+            offset = self.position - other.position
+            d_sq = offset.length_squared()
+            if 0 < d_sq < sep_radius_sq:
+                # use 1/d² weighting – no sqrt
+                offset.normalize()
+                steer += offset / d_sq
                 count += 1
         if count > 0:
             steer /= count
@@ -74,18 +113,17 @@ class Boid(Entity):
                 steer *= self.max_force
         return steer
 
-
-    def calc_alignment(self):
-        avg_velocity = Vec3(0,0,0)
+    def calc_alignment(self, nearby):
+        avg_velocity = Vec3(0, 0, 0)
         count = 0
-
-        for other in Boid.all_boids:
-            if other is self: 
+        vision_radius_sq = self.vision_radius ** 2
+        for other in nearby:
+            if other is self:
                 continue
-            if distance(self, other) < self.vision_radius:
+            offset = self.position - other.position
+            if offset.length_squared() < vision_radius_sq:
                 avg_velocity += other.velocity
                 count += 1
-
         if count > 0:
             avg_velocity /= count
             avg_velocity.normalize()
@@ -95,18 +133,19 @@ class Boid(Entity):
                 steer.normalize()
                 steer *= self.max_force
             return steer
-        return Vec3(0,0,0)
+        return Vec3(0, 0, 0)
 
-    def calc_cohesion(self):
-        center = Vec3(0,0,0)
+    def calc_cohesion(self, nearby):
+        center = Vec3(0, 0, 0)
         count = 0
-
-        for other in Boid.all_boids:
-            if other is self: continue
-            if distance(self, other) < self.vision_radius:
+        vision_radius_sq = self.vision_radius ** 2
+        for other in nearby:
+            if other is self:
+                continue
+            offset = self.position - other.position
+            if offset.length_squared() < vision_radius_sq:
                 center += other.position
                 count += 1
-
         if count > 0:
             center /= count
             desired = center - self.position
@@ -117,42 +156,52 @@ class Boid(Entity):
                 steer.normalize()
                 steer *= self.max_force
             return steer
-        return Vec3(0,0,0)
-    
-        
-    def update(self):
+        return Vec3(0, 0, 0)
 
-        sep = self.calc_separation() * SEPARATION_WEIGHT
-        ali = self.calc_alignment() * ALIGNMENT_WEIGHT
-        coh = self.calc_cohesion() * COHESION_WEIGHT
+    def apply_flocking(self, grid):
+        nearby = grid.get_nearby(self, self.vision_radius)
 
-        self.velocity += sep + ali + coh # type: ignore # Add "- self.velocity*0.1" if you want them to lose speed after separating and trully check of the movement was just due to it
+        sep = self.calc_separation(nearby) * SEPARATION_WEIGHT
+        ali = self.calc_alignment(nearby) * ALIGNMENT_WEIGHT
+        coh = self.calc_cohesion(nearby) * COHESION_WEIGHT
 
+        self.velocity += sep + ali + coh
+
+        # limit speed
         if self.velocity.length() > self.max_speed: # type: ignore
             self.velocity.normalize() # type: ignore
             self.velocity *= self.max_speed # type: ignore
-        
-        self.position += self.velocity * time.dt # type: ignore 
 
+        self.position += self.velocity * time.dt  # type: ignore
+
+        if self.velocity.length() > 0:   # avoid zero‑vector errors # type: ignore
+            self.look_at(self.position + self.velocity)
+
+        # wrap around the bounded world
         for attr in ('x', 'y', 'z'):
             val = getattr(self, attr)
             if val > BOUNDS:
                 setattr(self, attr, -BOUNDS)
             elif val < -BOUNDS:
                 setattr(self, attr, BOUNDS)
-    
-        r = max(0,min(1,(self.x + 1)/2))
-        g = max(0,min(1,(self.y + 1)/2))
-        b = max(0,min(1,(self.z + 1)/2))
 
+        # colour based on position (rainbow across the world)
+        r = max(0, min(1, (self.x + BOUNDS) / (2 * BOUNDS)))
+        g = max(0, min(1, (self.y + BOUNDS) / (2 * BOUNDS)))
+        b = max(0, min(1, (self.z + BOUNDS) / (2 * BOUNDS)))
         self.color = color.rgb(r, g, b)
+
+# Ursina automatically calls this global update() every frame
+def update():
+    grid.clear()
+    for boid in Boid.all_boids:
+        grid.insert(boid)
+    for boid in Boid.all_boids:
+        boid.apply_flocking(grid)
 
 
 camera = EditorCamera()
-
-
-boids = [Boid() for _ in range(80)]
-
-wireframe_cube = Entity(model='cube', scale=BOUNDS*2, color=color.white, wireframe=True)
+boids = [Boid() for _ in range(280)]
+wireframe_cube = Entity(model='cube', scale=BOUNDS * 2, color=color.white, wireframe=True)
 
 app.run()
