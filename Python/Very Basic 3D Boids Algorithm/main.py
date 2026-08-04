@@ -6,7 +6,8 @@ app = Ursina()
 SEPARATION_WEIGHT = 0.3
 ALIGNMENT_WEIGHT = 0.2
 COHESION_WEIGHT = 0.1
-SHOW_VISUALS = True
+SHOW_VISUALS = False
+BOUNDS = 10
 
 def input(key):
     global SHOW_VISUALS
@@ -23,7 +24,8 @@ class SeparationVisualizer(Entity):
             scale=boid.separation_radius * 2/0.2,
             color=color.rgb(70, 70, 70),   # red, 60 alpha
             unlit=True,
-            alpha=0.2                          # enables alpha blending
+            alpha=0.2,                          # enables alpha blending
+            enabled=SHOW_VISUALS
         )
     
 
@@ -34,9 +36,9 @@ class Boid(Entity):
             model='cube', 
             scale=0.2,
             color=color.black,
-            position=(random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1))
+            position=(random.uniform(-BOUNDS,BOUNDS),random.uniform(-BOUNDS,BOUNDS),random.uniform(-BOUNDS,BOUNDS))
         )
-        self.velocity = Vec3(0.0,0.0,0.0)#Vec3(random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1))
+        self.velocity = Vec3(random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1)) #Vec3(0.0,0.0,0.0)
 
         # Experimenting using slightly random values in hopes it'll mimic individuality even among same species individuals
         self.vision_radius = random.uniform(1.5,2.5) #defining how far in a circle/sphere each boid can see
@@ -96,21 +98,48 @@ class Boid(Entity):
         return Vec3(0,0,0)
 
     def calc_cohesion(self):
-        pass
+        center = Vec3(0,0,0)
+        count = 0
+
+        for other in Boid.all_boids:
+            if other is self: continue
+            if distance(self, other) < self.vision_radius:
+                center += other.position
+                count += 1
+
+        if count > 0:
+            center /= count
+            desired = center - self.position
+            desired.normalize()
+            desired *= self.max_speed
+            steer = desired - self.velocity
+            if steer.length() > self.max_force:
+                steer.normalize()
+                steer *= self.max_force
+            return steer
+        return Vec3(0,0,0)
     
         
     def update(self):
 
         sep = self.calc_separation() * SEPARATION_WEIGHT
         ali = self.calc_alignment() * ALIGNMENT_WEIGHT
+        coh = self.calc_cohesion() * COHESION_WEIGHT
 
-        self.velocity += sep + ali # type: ignore # Add "- self.velocity*0.1" if you want them to lose speed after separating and trully check of the movement was just due to it
+        self.velocity += sep + ali + coh # type: ignore # Add "- self.velocity*0.1" if you want them to lose speed after separating and trully check of the movement was just due to it
 
         if self.velocity.length() > self.max_speed: # type: ignore
             self.velocity.normalize() # type: ignore
             self.velocity *= self.max_speed # type: ignore
         
         self.position += self.velocity * time.dt # type: ignore 
+
+        for attr in ('x', 'y', 'z'):
+            val = getattr(self, attr)
+            if val > BOUNDS:
+                setattr(self, attr, -BOUNDS)
+            elif val < -BOUNDS:
+                setattr(self, attr, BOUNDS)
     
         r = max(0,min(1,(self.x + 1)/2))
         g = max(0,min(1,(self.y + 1)/2))
@@ -124,6 +153,6 @@ camera = EditorCamera()
 
 boids = [Boid() for _ in range(80)]
 
-Entity(model='plane', scale=10, color=color.gray, texture='white_cube',)
+wireframe_cube = Entity(model='cube', scale=BOUNDS*2, color=color.white, wireframe=True)
 
 app.run()
