@@ -1,14 +1,57 @@
 from ursina import *  # type: ignore
 import random
 
-SEPARATION_WEIGHT = 0.3
-ALIGNMENT_WEIGHT = 0.3
-COHESION_WEIGHT = 0.2
+separation_weight = 0.3
+alignment_weight = 0.3
+cohesion_weight = 0.2
 SHOW_VISUALS = False
-BOUNDS = 10
-CELL_SIZE = 2
+BOUNDING_BOX_ENABLED = True
+BOUNDS = 5
+CELL_SIZE = 3
 
 app = Ursina()
+
+def set_separation():
+    global separation_weight
+    separation_weight = sep_slider.value
+
+def set_alignment():
+    global alignment_weight
+    alignment_weight = ali_slider.value
+
+def set_cohesion():
+    global cohesion_weight
+    cohesion_weight = coh_slider.value
+
+sep_slider = Slider(
+    text="Separation",
+    min=0.0, max=2.0, default=separation_weight, # type: ignore
+    step=0.01,
+    x=-0.65, y=0.45,
+    on_value_changed=set_separation,
+    parent=camera.ui,
+    scale=0.5
+)
+
+ali_slider = Slider(
+    text="Alignment",
+    min=0.0, max=2.0, default=alignment_weight, # type: ignore
+    step=0.01,
+    x=-0.65, y=0.35,
+    on_value_changed=set_alignment,
+    parent=camera.ui,
+    scale=0.5
+)
+
+coh_slider = Slider(
+    text="Cohesion",
+    min=0.0, max=2.0, default=cohesion_weight, # type: ignore
+    step=0.01,
+    x=-0.65, y=0.25,
+    on_value_changed=set_cohesion,
+    parent=camera.ui,
+    scale=0.5
+)
 
 def input(key):
     global SHOW_VISUALS
@@ -16,6 +59,10 @@ def input(key):
         SHOW_VISUALS = not SHOW_VISUALS
         for boid in Boid.all_boids:
             boid.sep_visual.enabled = SHOW_VISUALS
+    global BOUNDING_BOX_ENABLED
+    if key == 'b':
+        BOUNDING_BOX_ENABLED = not BOUNDING_BOX_ENABLED
+        wireframe_cube.enabled = BOUNDING_BOX_ENABLED
 
 class SpatialGrid:
     def __init__(self, cell_size):
@@ -45,9 +92,7 @@ class SpatialGrid:
                     if key in self.cells:
                         candidates.extend(self.cells[key])
         return candidates
-
-grid = SpatialGrid(CELL_SIZE)
-
+    
 class SeparationVisualizer(Entity):
     def __init__(self, boid):
         super().__init__(
@@ -62,6 +107,8 @@ class SeparationVisualizer(Entity):
     def update(self):
         self.color = self.parent.color
         self.alpha = 0.2
+
+grid = SpatialGrid(CELL_SIZE)
 
 class Boid(Entity):
     all_boids = []
@@ -161,9 +208,9 @@ class Boid(Entity):
     def apply_flocking(self, grid):
         nearby = grid.get_nearby(self, self.vision_radius)
 
-        sep = self.calc_separation(nearby) * SEPARATION_WEIGHT
-        ali = self.calc_alignment(nearby) * ALIGNMENT_WEIGHT
-        coh = self.calc_cohesion(nearby) * COHESION_WEIGHT
+        sep = self.calc_separation(nearby) * separation_weight
+        ali = self.calc_alignment(nearby) * alignment_weight
+        coh = self.calc_cohesion(nearby) * cohesion_weight
 
         self.velocity += sep + ali + coh
 
@@ -178,12 +225,13 @@ class Boid(Entity):
             self.look_at(self.position + self.velocity)
 
         # wrap around the bounded world
-        for attr in ('x', 'y', 'z'):
-            val = getattr(self, attr)
-            if val > BOUNDS:
-                setattr(self, attr, -BOUNDS)
-            elif val < -BOUNDS:
-                setattr(self, attr, BOUNDS)
+        if BOUNDING_BOX_ENABLED:
+            for attr in ('x', 'y', 'z'):
+                val = getattr(self, attr)
+                if val > BOUNDS:
+                    setattr(self, attr, -BOUNDS)
+                elif val < -BOUNDS:
+                    setattr(self, attr, BOUNDS)
 
         # colour based on position (rainbow across the world)
         r = max(0, min(1, (self.x + BOUNDS) / (2 * BOUNDS)))
@@ -200,8 +248,10 @@ def update():
         boid.apply_flocking(grid)
 
 
-camera = EditorCamera()
-boids = [Boid() for _ in range(280)]
-wireframe_cube = Entity(model='cube', scale=BOUNDS * 2, color=color.white, wireframe=True)
+camera = EditorCamera() 
+
+boids = [Boid() for _ in range(180)]
+wireframe_cube = Entity(model='cube', scale=BOUNDS * 2, color=color.white, wireframe=True, double_sided= True)
+
 
 app.run()
