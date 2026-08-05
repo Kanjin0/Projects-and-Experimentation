@@ -251,7 +251,9 @@ def update():
         boid.apply_flocking(grid)
 
 
-camera = EditorCamera() 
+camera = EditorCamera()
+camera.position = Vec3(15, 10, 15)
+camera.look_at(Vec3(-1, -0.66, -1))
 
 boids = [Boid() for _ in range(180)]
 wireframe_cube = Entity(model='cube', scale=BOUNDS * 2, color=color.white, wireframe=True, double_sided= True)
