@@ -30,7 +30,8 @@ sep_slider = Slider(
     x=-0.65, y=0.45,
     on_value_changed=set_separation,
     parent=camera.ui,
-    scale=0.5
+    scale=0.5,
+    dynamic=True
 )
 
 ali_slider = Slider(
@@ -40,7 +41,8 @@ ali_slider = Slider(
     x=-0.65, y=0.35,
     on_value_changed=set_alignment,
     parent=camera.ui,
-    scale=0.5
+    scale=0.5,
+    dynamic=True
 )
 
 coh_slider = Slider(
@@ -50,7 +52,8 @@ coh_slider = Slider(
     x=-0.65, y=0.25,
     on_value_changed=set_cohesion,
     parent=camera.ui,
-    scale=0.5
+    scale=0.5,
+    dynamic=True
 )
 
 def input(key):
