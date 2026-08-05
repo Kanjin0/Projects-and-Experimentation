@@ -108,6 +108,9 @@ class SeparationVisualizer(Entity):
             enabled=SHOW_VISUALS
         )
     def update(self):
+        if not self.enabled:
+            return
+        
         self.color = self.parent.color
         self.alpha = 0.2
 
@@ -217,14 +220,17 @@ class Boid(Entity):
 
         self.velocity += sep + ali + coh
 
+        vel_len = self.velocity.length() # type: ignore
+
         # limit speed
-        if self.velocity.length() > self.max_speed: # type: ignore
+        if vel_len > self.max_speed:
             self.velocity.normalize() # type: ignore
             self.velocity *= self.max_speed # type: ignore
+            vel_len = self.max_speed
 
         self.position += self.velocity * time.dt  # type: ignore
 
-        if self.velocity.length() > 0:   # avoid zero‑vector errors # type: ignore
+        if vel_len > 0:   # avoid zero‑vector errors
             self.look_at(self.position + self.velocity)
 
         # wrap around the bounded world
